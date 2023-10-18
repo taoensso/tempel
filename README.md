@@ -5,25 +5,52 @@
 
 ### Data security framework for Clojure
 
-This library is **still under development** and not available yet for public use.
+**Tempel** is a lightweight encryption framework that wraps the JVM's native crypto facilities to provide a **high-level Clojure API** that is: idiomatic, simple, and **easy-to-use** even for non-experts.
+
+It incorporates **best practices and reasonable defaults** to help simplify many common data security needs.
 
 ## Latest release/s
 
-- Coming [~Nov 2023](https://www.taoensso.com/clojure/roadmap)
+- Snapshot [here](https://clojars.org/com.taoensso/tempel) for early feedback
+- First v1.0.0 alpha coming [~Nov 2023](https://www.taoensso.com/clojure/roadmap)
 
 [![Main tests][Main tests SVG]][Main tests URL]
 [![Graal tests][Graal tests SVG]][Graal tests URL]
 
-See [here][GitHub releases] for earlier releases.
+<!-- TODO See [here][GitHub releases] for earlier releases. -->
 
 ## Why Tempel?
 
-- Coming later
+- **Easy-to-use, high-level API** focused on [common tasks](../../wiki/2-Examples) like logins, encryption, signing, etc.
+- **Reasonable defaults** including choice of algorithms and work factors
+- **Future-proof data formats** with auto-updated algorithms and work factors over time
+- Support for [⧉ symmetric](https://en.wikipedia.org/wiki/Symmetric-key_algorithm) and [⧉ asymmetric](https://en.wikipedia.org/wiki/Public-key_cryptography) (public-key) encryption
+- Automatic [⧉ scrypt](https://en.wikipedia.org/wiki/Scrypt) and [⧉ pbkdf2](https://en.wikipedia.org/wiki/PBKDF2) support for easy **password-based key stretching**
+- Simple **key management API** for password resets, key rotations, etc.
+- Beginner-oriented docstrings and [documentation](#documentation)
+
+Note that Tempel is [not intended](../../wiki/3-Faq#can-i-decrypt-tempel-data-with-other-tools) for interop with other cryptographic tools/APIs.
+
+## Disclaimer
+
+**Important**: while Tempel has been written and tested with care, the nature of the problem domain inevitably means that bugs and/or misuse can be **especially harmful and/or easy to make**.
+
+Bugs and/or misuse could lead to [security vulnerabilities](../../wiki/3-FAQ#how-secure-is-tempel) or even [permanent data loss](../../wiki/3-FAQ#is-there-a-risk-of-data-loss).
+
+Please be **very careful** evaluating Tempel and/or other cryptographic libraries/frameworks before use, especially new libraries/frameworks like Tempel!
 
 ## Documentation
 
 - [Full documentation][GitHub wiki] (**getting started** and more)
 - Auto-generated API reference: [Codox][Codox docs], [clj-doc][clj-doc docs]
+
+## Security advisories
+
+No advisories as of last README update. If any security vulnerabilities are discovered, they will be listed here along with an appropriate CVE.
+
+## Security reports
+
+To report a possible security vulnerability, **please email me** at `my first name at taoensso.com`. For particularly sensitive content, you may encrypt your message with my [public PGP/GPG key](https://www.taoensso.com/pgp). Thank you! - Peter Taoussanis
 
 ## Funding
 
