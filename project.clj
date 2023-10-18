@@ -25,8 +25,7 @@
      *unchecked-math*     false #_:warn-on-boxed}
 
     :dependencies
-    [[org.clojure/test.check "1.1.1"]
-     [com.taoensso/timbre    "6.3.1"]]}
+    [[org.clojure/test.check "1.1.1"]]}
 
    :graal-tests
    {:dependencies [[org.clojure/clojure "1.11.1"]
