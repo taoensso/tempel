@@ -8,12 +8,22 @@
   All formats intended to support non-breaking future updates.
 
   Abbreviations:
-    pbkdf - password based key derivation function
-    aad   - additional associated data (see also `aad-help`)
-    akm   - additional keying material (see also `akm-help`)
-    kek   - key encryption key (key used to encrypt another key)
-    cnt   -           content
-    ecnt  - encrypted content"
+    External:
+      pbkdf - Password Based Key Derivation Function
+      aad   - Additional Associated Aata (see also `aad-help`)
+      akm   - Additional Keying Material (see also `akm-help`)
+      kek   - Key encryption key (key used to encrypt another key)
+      cnt   - Unencrypted content
+      ecnt  - Encrypted   content
+      kc    - KeyChain
+      ck    - ChainKey
+
+    Internal:
+        ukey -             User     key (pre AKM, etc.)
+        pkey -             Password key (stretched from password)
+     (e)rkey - (Encrypted) Random   key (used as 1-time key, etc.)
+     (e)bkey - (Encrypted) Backup   key
+        fkey -             Final    key"
 
   {:author "Peter Taoussanis (@ptaoussanis)"}
   (:require
@@ -28,18 +38,19 @@
   (remove-ns 'taoensso.tempel)
   (:api (enc/interns-overview)))
 
-(enc/assert-min-encore-version [3 71 0])
+(enc/assert-min-encore-version [3 74 0])
 
 ;;;; TODO
-;; - Eval some of Signal's work for possible inclusion as higher-level API?
-;;   It's not currently obvious that any of these are particularly interesting.
-;;
+;; - Mod keychain encryption to take encrypt-fn, etc.?
+;;   - Update tests and docs
+
+;;;; TODO
+;; - Consider including something like Signal's "Double Ratchet" work?
 ;;   - X3DH ("Extended Triple Diffie-Hellman") key agreement protocol, Ref. <https://signal.org/docs/specifications/x3dh/>
 ;;     - Provides forward secrecy and cryptographic deniability.
 ;;     - Users have:
 ;;       - 1x permanent identity keypair, replaced only if private key is lost, pub on server
 ;;       - nx one-time "pre-key" keypairs, signed by identkey, updated regularly (e.g. weekly), sigs on server
-;;
 ;;   - "Double Ratchet" message protocol, Ref. <https://www.signal.org/docs/specifications/doubleratchet/>
 ;;     - Uses unique key for each message in conversation.
 ;;     - Keys generated such that a leaked key for msg n leaves other
@@ -50,7 +61,10 @@
 (enc/defaliases
   enc/str->utf8-ba
   enc/utf8-ba->str
+  enc/rate-limiter
+  enc/ba=
   bytes/as-ba
+  impl/rand-ba
 
   impl/with-srng
   impl/with-srng-insecure-deterministic!!!
@@ -122,6 +136,8 @@
     - Security credentials or certificates
     - Arbitrary Clojure data via Nippy, Ref. <https://github.com/taoensso/nippy>"
 
+  ;; Ref. NIST SP 800-56A §5.9.1 to §5.9.3 for SKM/AKM
+
   "See docstring")
 
 ;;;; Config
@@ -129,7 +145,7 @@
 (enc/defonce default-keypair-creator_
   "Default stateful `KeyPair` generator with options:
   {:buffer-len 16, :n-threads [:perc 10]}"
-  (delay (impl/keypair-creator {:buffer-len 16, :n-threads [:perc 10]})))
+  (delay (impl/keypair-creator {:buffer-len 16, :n-threads [:ratio 0.1]})))
 
 (comment (@default-keypair-creator_ :rsa-1024))
 
@@ -149,25 +165,27 @@
    :symmetric-keys      [:random]
    :asymmetric-keypairs [:rsa-3072 :dh-3072]
 
-   :embed-key-ids?      true})
+   :embed-key-ids?      true
+   :embed-hmac?         true
+   :ignore-hmac?        false
+
+   :backup-key          nil
+   :backup-opts         nil})
 
 (enc/defonce ^:dynamic *config*
-  "Tempel's behaviour is controlled in two ways:
-    1. Through options manually provided in calls to its API functions.
-    2. Through options in this `*config*` map.
+  "Tempel's behaviour is controlled by:
+    1. Call   options, as provided to API functions.
+    2. Config options, as provided in this dynamic map.
 
-  Any time an API function uses config options, the relevant config keys will
-  be mentioned in that function's docstring.
+  Config options (2) act as the default over which call options (1) will be merged.
+  So these are equivalent:
 
-  As a convenience, relevant config options (2) can also be overridden through
-  call options (1). For example, these are equivalent:
-
-    (binding [*config* (assoc *config* :hash-algo :sha-256)]
+    (binding [*config* <your-opts>)]
       (encrypt-with-password ba-content password {}))
 
-    (encrypt-with-password ba-content password {:hash-algo :sha-256})
+    (encrypt-with-password ba-content password <your-opts>)
 
-  Options:
+  Config options:
 
      Default values (*) should be sensible for most common use cases.
 
@@ -233,8 +251,8 @@
       Together these support all common Tempel functionality, and are a
       reasonable choice in most cases.
 
-    `:embed-key-ids?`
-      Should key ids be embedded in output when using `KeyChain`s?
+    `:embed-key-ids?` (relevant only when encrypting)
+      Should key ids be embedded in encrypted output when using `KeyChain`s?
       This will allow the automatic selection of relevant keys during decryption,
       in exchange for leaking (making public) the ids used for encryption.
 
@@ -244,12 +262,76 @@
 
       Default: true.
       You may want to disable this for maximum security, but note that doing so
-      may complicate decryption. See the Tempel Wiki for details."
+      may complicate decryption. See the Tempel Wiki for details.
+
+    `:embed-hmac?` (relevant only when encrypting)
+      Should an HMAC be embedded in encrypted output? When present, embedded
+      HMACs can be checked on decryption to help verify data integrity and
+      decryption key.
+
+      Default: true.
+      You'll generally want to keep this enabled unless you're trying to
+      minimize the size of your encrypted output. Adds ~32 bytes to output when
+      using the default `:sha-256` hash algorithm.
+
+    `:ignore-hmac?` (relevant only when decrypting)
+      Should embedded HMAC be ignored when decrypting?
+
+      Default: false.
+      Keep this disabled unless you're sure you understand the implications.
+
+    `:backup-key`
+      When encrypting:
+        Encrypt data so that decryption will be possible with either the primary
+        key/password, *OR* with this optional secondary (backup) `KeyChain`
+        (see `keychain`) or `KeyPair` (see `keypair-create`).
+
+        NB: this backup key will be able to decrypt *without* AKM (see `akm-help`).
+
+      When decrypting:
+        When data was encrypted with support for a backup key, use this
+        `KeyChain` (see `keychain`) or `KeyPair` (see `keypair-create`) to decrypt.
+
+      Key algorithm must support use as an asymmetric cipher.
+      Suitable algorithms: `:rsa-<nbits>`.
+
+    `:backup-opts`
+      When encrypting: encryption opts map used with `:backup-key`.
+      When decrypting: decryption opts map used with `:backup-key`."
 
   default-config)
 
-(defn ^:no-doc get-config "Implementation detail" [opts] (enc/fast-merge *config* opts))
-(comment (get-config {}))
+(defn ^:no-doc get-opts+
+  "Implementation detail."
+  ([     opts] (enc/merge *config* opts))
+  ([base opts] (enc/merge base     opts)))
+
+(comment (get-opts+ {} {:a :A}))
+
+;;;; Misc utils
+
+(defn with-min-runtime*
+  "Executes (f) and ensures that at least the given number of milliseconds
+  have elapsed before returning result. Can be useful for protection against
+  timing attacks, etc.:
+    (with-min-runtime* 2000 (fn variable-time-fn [] <...>))"
+  [msecs f]
+  (let [t0 (System/currentTimeMillis)
+        {:keys [okay error]} (try {:okay (f)} (catch Throwable t {:error t}))
+        msecs-elapsed (- (System/currentTimeMillis) t0)
+        msecs-delta   (- (int msecs) msecs-elapsed)]
+
+    (when (pos? msecs-delta) (Thread/sleep (int msecs-delta)))
+    (if error (throw error) okay)))
+
+(defmacro with-min-runtime
+  "Executes form and ensures that at least the given number of milliseconds
+  have elapsed before returning result. Can be useful for protection against
+  timing attacks, etc:
+    (with-min-runtime 2000 <variable-time-form>)"
+  [msecs form] `(with-min-runtime* ~(enc/as-pos-int msecs) (fn [] ~form)))
+
+(comment (with-min-runtime 2000 (do (println "running") (Thread/sleep 1000) :done)))
 
 ;;;; Public data
 
@@ -263,6 +345,8 @@
     `:key-id`          - See `:embed-key-ids?` option of `encrypt-X` API
     `:receiver-key-id` - ''
     `:sender-key-id`   - ''
+    `:has-hmac?`       - Does data have embedded HMAC?
+    `:has-backup-key?` - Can data be decrypted with a secondary (backup) key?
     `:key-algo`        - ∈ #{:rsa-<nbits> :dh-<nbits> :ec-<curve>}
     `:version`         - Integer version of data format (1, 2, etc.).
     `:kind`            - ∈ #{:encrypted-with-symmetric-key
@@ -278,51 +362,54 @@
 
   #_df/reference-data-formats
   [ba-tempel-output]
+
+  (when-not (enc/bytes?  ba-tempel-output)
+    (enc/unexpected-arg! ba-tempel-output
+      {:param           'ba-tempel-output
+       :expected        'byte-array}))
+  
   (bytes/with-in [in] ba-tempel-output
-    (let [_       (df/read-head! in)
-          env-kid (df/read-kid   in :envelope)
+    (let [_                 (df/read-head! in)
+          env-kid           (df/read-kid   in :envelope)
+          flags             (df/read-flags in {:thaw/skip-unknown? true})
           ;; [kind version] (re-find #"^(\w+)-v(\d+)$" (name env-kid))
-          asm enc/assoc-some]
+          flag?             #(contains? flags %)
+          has-hmac?         (flag? :has-hmac)
+          has-backup-key?   (flag? :has-backup-key)]
 
       (case env-kid
+        :encrypted-with-password-v1
+        (let [?ba-aad (bytes/read-dynamic-?ba in)]
+          (enc/assoc-when
+            {:kind :encrypted-with-password, :version 1}
+            :ba-aad          ?ba-aad
+            :has-hmac?       has-hmac?
+            :has-backup-key? has-backup-key?))
+
         :encrypted-with-symmetric-key-v1
         (let [?ba-aad (bytes/read-dynamic-?ba  in)
               ?key-id (bytes/read-dynamic-?str in)]
-          (asm
+          (enc/assoc-when
             {:kind :encrypted-with-symmetric-key, :version 1}
-            :ba-aad ?ba-aad
-            :key-id ?key-id))
-
-        :encrypted-with-password-v1
-        (let [?ba-aad (bytes/read-dynamic-?ba in)]
-          (asm
-            {:kind :encrypted-with-password, :version 1}
-            :ba-aad ?ba-aad))
-
-        :signed-v1
-        (let [?ba-aad     (bytes/read-dynamic-?ba  in)
-              key-algo    (df/read-kid             in :key-algo)
-              ?key-id     (bytes/read-dynamic-?str in)
-              ?ba-content (bytes/read-dynamic-?ba  in)]
-          (impl/key-algo! key-algo [:sig-algo])
-          (asm
-            {:kind :signed, :version 1, :key-algo key-algo}
-            :ba-aad     ?ba-aad
-            :key-id     ?key-id
-            :ba-content ?ba-content))
+            :ba-aad          ?ba-aad
+            :key-id          ?key-id
+            :has-hmac?       has-hmac?
+            :has-backup-key? has-backup-key?))
 
         (:encrypted-with-1-keypair-simple-v1
          :encrypted-with-1-keypair-hybrid-v1)
-        (let [hybrid?  (= env-kid :encrypted-with-1-keypair-hybrid-v1)
-              ?ba-aad  (when hybrid? (bytes/read-dynamic-?ba  in))
-              key-algo               (df/read-kid             in :key-algo)
-              ?key-id                (bytes/read-dynamic-?str in)]
+        (let [hybrid?   (= env-kid :encrypted-with-1-keypair-hybrid-v1)
+              ?ba-aad   (when hybrid? (bytes/read-dynamic-?ba  in))
+              key-algo                (df/read-kid             in :key-algo)
+              ?key-id                 (bytes/read-dynamic-?str in)]
           (impl/key-algo! key-algo [:asym-cipher-algo])
-          (asm
+          (enc/assoc-when
             {:kind :encrypted-with-1-keypair, :version 1, :key-algo key-algo}
-            :hybrid? (when hybrid? true)
-            :ba-aad  ?ba-aad
-            :key-id  ?key-id))
+            :scheme          (if hybrid? :hybrid :simple)
+            :ba-aad          ?ba-aad
+            :key-id          ?key-id
+            :has-hmac?       has-hmac?
+            :has-backup-key? has-backup-key?))
 
         :encrypted-with-2-keypairs-v1
         (let [?ba-aad      (bytes/read-dynamic-?ba  in)
@@ -330,19 +417,35 @@
               ?recp-key-id (bytes/read-dynamic-?str in)
               ?send-key-id (bytes/read-dynamic-?str in)]
           (impl/key-algo! key-algo [:ka-algo])
-          (asm
+          (enc/assoc-when
             {:kind :encrypted-with-2-keypairs, :version 1, :key-algo key-algo}
             :ba-aad          ?ba-aad
             :receiver-key-id ?recp-key-id
-            :sender-key-id   ?send-key-id))
+            :sender-key-id   ?send-key-id
+            :has-hmac?       has-hmac?
+            :has-backup-key? has-backup-key?))
+
+        :signed-v1
+        (let [?ba-aad     (bytes/read-dynamic-?ba  in)
+              key-algo    (df/read-kid             in :key-algo)
+              ?key-id     (bytes/read-dynamic-?str in)
+              ?ba-content (bytes/read-dynamic-?ba  in)]
+          (impl/key-algo! key-algo [:sig-algo])
+          (enc/assoc-when
+            {:kind :signed, :version 1, :key-algo key-algo}
+            :ba-aad     ?ba-aad
+            :key-id     ?key-id
+            :ba-content ?ba-content))
 
         :encrypted-keychain-v1
         (let [?ba-aad   (bytes/read-dynamic-?ba in)
               ba-kc-pub (bytes/read-dynamic-ba  in)]
-          (asm
+          (enc/assoc-when
             {:kind :encrypted-keychain, :version 1,
-             :keychain (keys/keychain-restore ba-kc-pub)}
-            :ba-aad ?ba-aad))
+             :keychain (keys/keychain-restore nil ba-kc-pub)}
+            :ba-aad          ?ba-aad
+            :has-hmac?       has-hmac?
+            :has-backup-key? has-backup-key?))
 
         (enc/unexpected-arg! env-kid
           {:expected :envelope-with-public-data
@@ -357,6 +460,11 @@
       :cnt (bytes/?utf8-ba->?str ba-content))))
 
 ;;;; Cipher API
+
+(do
+  (def ^:private ^:const error-msg-bad-backup-key "Failed to decrypt Tempel data (with backup key)")
+  (def ^:private ^:const error-msg-bad-pwd        "Failed to decrypt Tempel data (with password)")
+  (def ^:private ^:const error-msg-bad-ehmac      "Unexpected HMAC: bad decryption key, or corrupt data."))
 
 (defn- return-val [context return-kind ?ba-cnt ?ba-aad]
   (case return-kind
@@ -393,36 +501,53 @@
     `:ba-aad` - See `aad-help` docstring
     `:ba-akm` - See `akm-help` dosctring
 
-  Relevant `*config*` keys (see that var's docstring for details):
-    `hash-algo`, `sym-cipher-algo`, `pbkdf-algo`, `pbkdf-nwf`, `embed-key-ids?`"
+    And see `*config*` docstring for details:
+      `hash-algo`, `sym-cipher-algo`, `pbkdf-algo`, `pbkdf-nwf`,
+      `embed-key-ids?`, `embed-hmac?`, `backup-key`, `backup-opts`."
 
   #_(df/reference-data-formats :encrypted-with-password-v1)
+  {:arglists
+   '([ba-content password &
+      [{:keys
+        [ba-aad ba-akm
+         hash-algo sym-cipher-algo
+         pbkdf-algo pbkdf-nwf
+         embed-key-ids? embed-hmac?
+         backup-key backup-opts]}]])}
+
   ^bytes
-  [ba-content password &
-   [{:keys [ba-aad ba-akm, :config
-            hash-algo sym-cipher-algo
-            pbkdf-algo pbkdf-nwf
-            embed-key-ids?]}]]
+  [ba-content password & [opts]]
+  (let [{:as opts+
+         :keys
+         [ba-aad ba-akm
+          hash-algo sym-cipher-algo pbkdf-algo pbkdf-nwf
+          embed-key-ids? embed-hmac?
+          #_backup-key #_backup-opts]}
+        (get-opts+ opts)
 
-  (let [{:keys [hash-algo sym-cipher-algo pbkdf-algo pbkdf-nwf
-                embed-key-ids?]} (get-config config)
-        _ (have? some? hash-algo sym-cipher-algo pbkdf-algo pbkdf-nwf)
-
+        _          (have? some? hash-algo sym-cipher-algo pbkdf-algo pbkdf-nwf)
         sck        (impl/as-symmetric-cipher-kit sym-cipher-algo)
         key-len    (impl/sck-key-len sck)
 
         ba-iv      (impl/rand-ba (max 16 (impl/sck-iv-len sck)))
-        ba-salt    (impl/hmac hash-algo ba-iv (bytes/str->utf8-ba "iv->salt"))
+        ba-salt    (impl/hmac hash-algo ba-iv impl/ba-const-iv->salt)
 
         pbkdf-nwf  (pbkdf/pbkdf-nwf-parse pbkdf-algo pbkdf-nwf)
         ba-key     (let [ba-pkey (pbkdf/pbkdf pbkdf-algo key-len ba-salt password pbkdf-nwf)]
-                     (impl/hmac hash-algo ba-pkey ba-akm))
+                     (impl/hmac hash-algo ba-pkey ba-akm ba-iv))
 
-        ba-ecnt    (impl/sck-encrypt sck ba-iv ba-key ba-content ba-aad)]
+        ba-ecnt    (let [ba-fkey (impl/derive-final-key hash-algo ba-key)]
+                     (impl/sck-encrypt sck ba-iv ba-fkey ba-content ba-aad))
 
-    (bytes/with-out [out] [24 ba-ecnt ba-aad ba-iv]
+        ?ba-ebkey  (keys/get-backup-key-for-encryption ba-key opts+)
+        ehmac-size (if embed-hmac? (impl/hmac-len hash-algo) 0)]
+
+    (bytes/with-out [out baos]
+      [64 ba-ecnt ba-aad ?ba-ebkey ba-iv ehmac-size]
       (df/write-head          out)
       (df/write-kid           out :envelope :encrypted-with-password-v1)
+      (df/write-flags         out nil {:has-hmac       (boolean embed-hmac?)
+                                       :has-backup-key (boolean ?ba-ebkey)})
       (bytes/write-dynamic-ba out ba-aad)
       (df/write-kid           out :hash-algo       hash-algo)
       (df/write-kid           out :sym-cipher-algo sym-cipher-algo)
@@ -431,6 +556,9 @@
       (bytes/write-dynamic-ba out nil #_ba-salt)
       (bytes/write-dynamic-ba out ba-iv)
       (bytes/write-dynamic-ba out ba-ecnt)
+      (bytes/write-dynamic-ba out ?ba-ebkey)
+      (df/write-resv          out)
+      (impl/write-ehmac       out baos embed-hmac? hash-algo ba-key)
       (df/write-resv          out))))
 
 (comment (public-data-test (encrypt-with-password (as-ba "cnt") "pwd")))
@@ -450,40 +578,61 @@
   Will throw on decryption failure (bad password, etc.)."
 
   #_(df/reference-data-formats :encrypted-with-password-v1)
-  [ba-encrypted password &
-   [{:keys [return ba-akm]
-     :or   {return :ba-content}}]]
+  {:arglists
+   '([ba-encrypted password &
+      [{:keys [return ba-akm backup-key backup-opts ignore-hmac?]
+        :or   {return :ba-content}}]])}
 
-  (bytes/with-in [in] ba-encrypted
-    (let [env-kid         :encrypted-with-password-v1
-          _               (df/read-head!          in)
-          _               (df/read-kid            in :envelope env-kid)
-          ?ba-aad         (bytes/read-dynamic-?ba in)
-          hash-algo       (df/read-kid            in :hash-algo)
-          sym-cipher-algo (df/read-kid            in :sym-cipher-algo)
-          pbkdf-algo      (df/read-kid            in :pbkdf-algo)
-          pbkdf-nwf       (bytes/read-ushort      in)
-          ?ba-salt        (bytes/read-dynamic-?ba in)
-          ba-iv           (bytes/read-dynamic-ba  in)
-          ba-ecnt         (bytes/read-dynamic-ba  in)
-          _               (df/read-resv!          in)
+  [ba-encrypted password & [opts]]
+  (let [{:keys [return] :or {return :ba-content}} opts
+        {:keys [ba-akm backup-key backup-opts ignore-hmac?] :as opts+}
+        (get-opts+ opts)]
 
-          sck (impl/as-symmetric-cipher-kit sym-cipher-algo)
-          ba-key
-          (let [key-len (impl/sck-key-len sck)
-                ba-salt (or ?ba-salt (impl/hmac hash-algo ba-iv (bytes/str->utf8-ba "iv->salt")))
-                ba-pkey (pbkdf/pbkdf pbkdf-algo key-len ba-salt password pbkdf-nwf)]
+    (bytes/with-in [in bais] ba-encrypted
+      (let [env-kid         :encrypted-with-password-v1
+            _               (df/read-head!          in)
+            _               (df/read-kid            in :envelope env-kid)
+            _               (df/skip-flags          in)
+            ?ba-aad         (bytes/read-dynamic-?ba in)
+            hash-algo       (df/read-kid            in :hash-algo)
+            sym-cipher-algo (df/read-kid            in :sym-cipher-algo)
+            pbkdf-algo      (df/read-kid            in :pbkdf-algo)
+            pbkdf-nwf       (bytes/read-ushort      in)
+            ?ba-salt        (bytes/read-dynamic-?ba in)
+            ba-iv           (bytes/read-dynamic-ba  in)
+            ba-ecnt         (bytes/read-dynamic-ba  in)
+            ?ba-ebkey       (bytes/read-dynamic-?ba in)
+            _               (df/read-resv!          in)
+            ehmac*          (impl/read-ehmac*       in bais ba-encrypted)
+            _               (df/read-resv!          in)
 
-            (impl/hmac hash-algo ba-pkey ba-akm))
+            hmac-pass!
+            (fn [ba-key]
+              (if (or ignore-hmac? (impl/ehmac-pass? ehmac* ba-encrypted hash-algo ba-key))
+                ba-key
+                (throw (ex-info error-msg-bad-ehmac {}))))
 
-          ba-cnt
-          (try
-            (impl/sck-decrypt sck ba-iv ba-key ba-ecnt ?ba-aad)
-            (catch Throwable t
-              (keys/decrypt-failed!
-                (ex-info "Failed to decrypt Tempel data (with password)" {} t))))]
+            sck     (impl/as-symmetric-cipher-kit sym-cipher-algo)
+            ba-bkey (keys/get-backup-key-for-decryption ?ba-ebkey opts+)
+            ba-key
+            (or
+              ba-bkey
+              (let [key-len (impl/sck-key-len sck)
+                    ba-salt (or ?ba-salt (impl/hmac hash-algo ba-iv impl/ba-const-iv->salt))
+                    ba-pkey (pbkdf/pbkdf pbkdf-algo key-len ba-salt password pbkdf-nwf)]
+                (impl/hmac hash-algo ba-pkey ba-akm ba-iv)))
 
-      (return-val env-kid return ba-cnt ?ba-aad))))
+            ba-cnt
+            (try
+              (let [ba-fkey (impl/derive-final-key hash-algo (hmac-pass! ba-key))]
+                (impl/sck-decrypt sck ba-iv ba-fkey ba-ecnt ?ba-aad))
+
+              (catch Throwable t
+                (if ba-bkey
+                  (throw (ex-info error-msg-bad-backup-key {} t))
+                  (throw (ex-info error-msg-bad-pwd        {} t)))))]
+
+        (return-val env-kid return ba-cnt ?ba-aad)))))
 
 (comment
   (let [ba-enc (encrypt-with-password (as-ba "cnt") "pwd")]
@@ -503,37 +652,60 @@
     `:ba-aad` - See `aad-help` docstring
     `:ba-akm` - See `akm-help` docstring
 
-  Relevant `*config*` keys (see that var's docstring for details):
-    `hash-algo`, `sym-cipher-algo`, `embed-key-ids?`"
+    And see `*config*` docstring for details:
+      `hash-algo`, `sym-cipher-algo`, `embed-key-ids?`,
+      `backup-key`, `backup-opts`."
 
   #_(df/reference-data-formats :encrypted-with-symmetric-key-v1)
+  {:arglists
+   '([ba-content key-sym &
+      [{:keys
+        [ba-aad ba-akm
+         hash-algo sym-cipher-algo
+         embed-key-ids? embed-hmac?
+         backup-key backup-opts]}]])}
+
   ^bytes
-  [ba-content key-sym &
-   [{:keys [ba-aad ba-akm, :config
-            hash-algo sym-cipher-algo embed-key-ids?] :as opts}]]
+  [ba-content key-sym & [opts]]
+  (let [{:as opts+
+         :keys
+         [ba-aad ba-akm
+          hash-algo sym-cipher-algo
+          embed-key-ids? embed-hmac?
+          #_backup-key #_backup-opts]}
+        (get-opts+ opts)
 
-  (let [{:keys [hash-algo sym-cipher-algo embed-key-ids?]} (get-config opts)
-        _ (have? some? hash-algo sym-cipher-algo)
-
-        ckey-sym (keys/get-ckeys-sym-cipher key-sym)
+        _          (have? some? hash-algo sym-cipher-algo)
+        ckey-sym   (keys/get-ckeys-sym-cipher key-sym)
         {:keys [key-sym key-id]} @ckey-sym
-        ba-key     (have enc/bytes? key-sym)
+        ba-ukey    (have enc/bytes? key-sym)
         ?ba-key-id (when embed-key-ids? (bytes/?str->?utf8-ba key-id))
 
-        sck     (impl/as-symmetric-cipher-kit sym-cipher-algo)
-        ba-iv   (impl/rand-ba (impl/sck-iv-len sck))
-        ba-key* (impl/hmac hash-algo ba-key ba-akm ba-iv) ; +IV for forward secrecy
-        ba-ecnt (impl/sck-encrypt sck ba-iv ba-key* ba-content ba-aad)]
+        sck        (impl/as-symmetric-cipher-kit sym-cipher-algo)
+        ba-iv      (impl/rand-ba (impl/sck-iv-len sck))
+        ba-key     (impl/hmac hash-algo ba-ukey ba-akm ba-iv)
 
-    (bytes/with-out [out] [16 ba-ecnt ba-aad ?ba-key-id ba-iv]
+        ba-ecnt    (let [ba-fkey (impl/derive-final-key hash-algo ba-key)]
+                     (impl/sck-encrypt sck ba-iv ba-fkey ba-content ba-aad))
+
+        ?ba-ebkey  (keys/get-backup-key-for-encryption ba-key opts+)
+        ehmac-size (if embed-hmac? (impl/hmac-len hash-algo) 0)]
+
+    (bytes/with-out [out baos]
+      [32 ba-ecnt ba-aad ?ba-key-id ?ba-ebkey ba-iv ehmac-size]
       (df/write-head          out)
       (df/write-kid           out :envelope :encrypted-with-symmetric-key-v1)
+      (df/write-flags         out nil {:has-hmac       (boolean embed-hmac?)
+                                       :has-backup-key (boolean ?ba-ebkey)})
       (bytes/write-dynamic-ba out ba-aad)
       (bytes/write-dynamic-ba out ?ba-key-id)
       (df/write-kid           out :hash-algo       hash-algo)
       (df/write-kid           out :sym-cipher-algo sym-cipher-algo)
       (bytes/write-dynamic-ba out ba-iv)
       (bytes/write-dynamic-ba out ba-ecnt)
+      (bytes/write-dynamic-ba out ?ba-ebkey)
+      (df/write-resv          out)
+      (impl/write-ehmac       out baos embed-hmac? hash-algo ba-key)
       (df/write-resv          out))))
 
 (comment (public-data-test (encrypt-with-symmetric-key (as-ba "cnt") (keychain))))
@@ -551,35 +723,61 @@
   Will throw on decryption failure (bad key, etc.)."
 
   #_(df/reference-data-formats :encrypted-with-symmetric-key-v1)
-  [ba-encrypted key-sym &
-   [{:keys [return ba-akm]
-     :or   {return :ba-content}}]]
+  {:arglists
+   '([ba-encrypted key-sym &
+      [{:keys [return ba-akm backup-key backup-opts ignore-hmac?]
+        :or   {return :ba-content}}]])}
 
-  (bytes/with-in [in] ba-encrypted
-    (let [env-kid         :encrypted-with-symmetric-key-v1
-          _               (df/read-head!           in)
-          _               (df/read-kid             in :envelope env-kid)
-          ?ba-aad         (bytes/read-dynamic-?ba  in)
-          ?key-id         (bytes/read-dynamic-?str in)
-          hash-algo       (df/read-kid             in :hash-algo)
-          sym-cipher-algo (df/read-kid             in :sym-cipher-algo)
-          ba-iv           (bytes/read-dynamic-ba   in)
-          ba-ecnt         (bytes/read-dynamic-ba   in)
-          _               (df/read-resv!           in)
+  [ba-encrypted key-sym & [opts]]
+  (let [{:keys [return] :or {return :ba-content}} opts
+        {:keys [ba-akm backup-key backup-opts ignore-hmac?] :as opts+}
+        (get-opts+ opts)]
 
-          sck       (impl/as-symmetric-cipher-kit sym-cipher-algo)
-          ckeys-sym (keys/get-ckeys-sym-cipher key-sym ?key-id)
-          ba-cnt
-          (keys/try-decrypt-with-keys! `decrypt-with-symmetric-key
-            (some? ?key-id) ckeys-sym
-            (fn [ckey-sym]
-              (let [{:keys [key-sym]} @ckey-sym
-                    ba-key  (have enc/bytes? key-sym)
-                    ba-key* (impl/hmac hash-algo ba-key ba-akm ba-iv) ; +IV for forward secrecy
-                    ba-cnt  (impl/sck-decrypt sck ba-iv ba-key* ba-ecnt ?ba-aad)]
-                ba-cnt)))]
+    (bytes/with-in [in bais] ba-encrypted
+      (let [env-kid         :encrypted-with-symmetric-key-v1
+            _               (df/read-head!           in)
+            _               (df/read-kid             in :envelope env-kid)
+            _               (df/skip-flags           in)
+            ?ba-aad         (bytes/read-dynamic-?ba  in)
+            ?key-id         (bytes/read-dynamic-?str in)
+            hash-algo       (df/read-kid             in :hash-algo)
+            sym-cipher-algo (df/read-kid             in :sym-cipher-algo)
+            ba-iv           (bytes/read-dynamic-ba   in)
+            ba-ecnt         (bytes/read-dynamic-ba   in)
+            ?ba-ebkey       (bytes/read-dynamic-?ba  in)
+            _               (df/read-resv!           in)
+            ehmac*          (impl/read-ehmac*        in bais ba-encrypted)
+            _               (df/read-resv!           in)
 
-      (return-val env-kid return ba-cnt ?ba-aad))))
+            hmac-pass!
+            (fn [ba-key]
+              (if (or ignore-hmac? (impl/ehmac-pass? ehmac* ba-encrypted hash-algo ba-key))
+                ba-key
+                (throw (ex-info error-msg-bad-ehmac {}))))
+
+            sck (impl/as-symmetric-cipher-kit sym-cipher-algo)
+            ba-cnt
+            (if-let [ba-key (keys/get-backup-key-for-decryption ?ba-ebkey opts+)]
+              (try
+                (let [ba-fkey (impl/derive-final-key hash-algo (hmac-pass! ba-key))]
+                  (impl/sck-decrypt sck ba-iv ba-fkey ba-ecnt ?ba-aad))
+
+                (catch Throwable t
+                  (throw (ex-info error-msg-bad-backup-key {} t))))
+
+              (let [ckeys-sym (keys/get-ckeys-sym-cipher key-sym ?key-id)]
+                (keys/try-decrypt-with-keys! `decrypt-with-symmetric-key
+                  (some? ?key-id) ckeys-sym
+                  (fn [ckey-sym]
+                    (let [{:keys [key-sym]} @ckey-sym
+                          ba-ukey (have enc/bytes? key-sym)
+                          ba-key  (impl/hmac hash-algo ba-ukey ba-akm ba-iv)
+                          ba-cnt
+                          (let [ba-fkey (impl/derive-final-key hash-algo (hmac-pass! ba-key))]
+                            (impl/sck-decrypt sck ba-iv ba-fkey ba-ecnt ?ba-aad))]
+                      ba-cnt)))))]
+
+        (return-val env-kid return ba-cnt ?ba-aad)))))
 
 (comment
   (let [kc     (keychain)
@@ -595,7 +793,7 @@
 
   Takes a `KeyChain` (see `keychain`) or `KeyPair` (see `keypair-create`).
   Key algorithm must support use as an asymmetric cipher.
-  Suitable algorithms: `:rsa-<nbits>`
+  Suitable algorithms: `:rsa-<nbits>`.
 
   Encryption uses receiver's asymmetric public  key.
   Decryption uses receiver's asymmetric private key.
@@ -606,17 +804,29 @@
     `:ba-aad` - See `aad-help` docstring
     `:ba-akm` - See `akm-help` docstring
 
-  Relevant `*config*` keys (see that var's docstring for details):
-    `hash-algo`, `sym-cipher-algo`, `asym-cipher-algo`, `embed-key-ids`?"
+    And see `*config*` docstring for details:
+      `hash-algo`, `sym-cipher-algo`, `asym-cipher-algo`,
+      `embed-key-ids`, `backup-key`, `backup-opts`."
+
+  #_(df/reference-data-formats :encrypted-with-1-keypair-<type>-v1)
+  {:arglists
+   '([ba-content receiver-key-pub &
+      [{:keys
+        [ba-aad ba-akm
+         hash-algo sym-cipher-algo asym-cipher-algo
+         embed-key-ids? embed-hmac?
+         backup-key backup-opts]}]])}
 
   ^bytes
-  [ba-content receiver-key-pub &
-   [{:keys [ba-aad ba-akm, :config
-            hash-algo sym-cipher-algo asym-cipher-algo
-            embed-key-ids?] :as opts}]]
-
-  (let [{:keys [asym-cipher-algo embed-key-ids?] :as opts*}
-        (get-config opts)
+  [ba-content receiver-key-pub & [opts]]
+  (let [{:keys [scheme] :or {scheme :hybrid}} opts ; Undocumented
+        {:as opts+
+         :keys
+         [ba-aad ba-akm
+          #_hash-algo #_sym-cipher-algo asym-cipher-algo
+          embed-key-ids? embed-hmac?
+          backup-key #_backup-opts]}
+        (get-opts+ opts)
 
         ckey-pub (keys/get-ckeys-asym-cipher receiver-key-pub)
         {:keys [key-pub key-id key-algo]} @ckey-pub
@@ -624,46 +834,32 @@
         ?ba-key-id       (when embed-key-ids? (bytes/?str->?utf8-ba key-id))
         asym-cipher-algo (have (or asym-cipher-algo (get (impl/key-algo-info key-algo) :asym-cipher-algo)))
 
-        ;; Simple optimization to cover ~common case of encrypting symmetric keys
-        hybrid? (or ba-aad ba-akm (> (alength ^bytes ba-content) 64))]
+        simple-scheme? ; Optimization when encrypting symmetric keys, etc.
+        (let [large-cnt?   (> (alength ^bytes ba-content) 62) ; RSA limitation
+              need-hybrid? (or embed-hmac? ba-aad ba-akm backup-key large-cnt?)]
 
-    (if hybrid?
+          (case scheme
+            :auto   (if need-hybrid? false true) ; Used internally for ebkeys
+            :hybrid                  false ; Default
+            :simple
+            (if need-hybrid?
+              (throw
+                (ex-info "Cannot use `:simple` scheme (>0 opts require `:hybrid`)"
+                  (enc/assoc-when {}
+                    :large-content?          large-cnt?
+                    :embed-hmac?    (boolean embed-hmac?)
+                    :ba-aad?        (boolean ba-aad)
+                    :ba-akm?        (boolean ba-akm)
+                    :backup-key?    (boolean backup-key))))
+              true)))]
 
-      ;; Hybrid scheme:
-      ;;   - Use a random 1-time symmetric key to encrypt content
-      ;;   - Wrap symmetric key with asymmetric encryption, embed
-
-      #_(df/reference-data-formats :encrypted-with-1-keypair-hybrid-v1)
-      (let [{:keys [hash-algo sym-cipher-algo]} opts*
-            _ (have? some? hash-algo sym-cipher-algo)
-
-            sck             (impl/as-symmetric-cipher-kit sym-cipher-algo)
-            ba-iv           (impl/rand-ba (impl/sck-iv-len  sck))
-            ba-key-pre-akm  (impl/rand-ba (impl/sck-key-len sck)) ; Random symmetric key (=> forward secrecy)
-            ba-key-post-akm (impl/hmac hash-algo ba-key-pre-akm ba-akm)
-            ba-ecnt         (impl/sck-encrypt sck ba-iv ba-key-post-akm ba-content ba-aad)
-            ba-ekey         (impl/encrypt-asymmetric asym-cipher-algo
-                              key-algo key-pub ba-key-pre-akm)]
-
-        #_(df/reference-data-formats :encrypted-with-1-keypair-simple-v1)
-        (bytes/with-out [out] [24 ba-ecnt ba-aad ba-iv ba-ekey]
-          (df/write-head          out)
-          (df/write-kid           out :envelope :encrypted-with-1-keypair-hybrid-v1)
-          (bytes/write-dynamic-ba out ba-aad)
-          (df/write-kid           out :key-algo key-algo)
-          (bytes/write-dynamic-ba out ?ba-key-id)
-          (df/write-kid           out :hash-algo        hash-algo)
-          (df/write-kid           out :sym-cipher-algo  sym-cipher-algo)
-          (df/write-kid           out :asym-cipher-algo asym-cipher-algo)
-          (bytes/write-dynamic-ba out ba-iv)
-          (bytes/write-dynamic-ba out ba-ecnt)
-          (bytes/write-dynamic-ba out ba-ekey)
-          (df/write-resv          out)))
-
+    (if simple-scheme?
+      #_(df/reference-data-formats :encrypted-with-1-keypair-simple-v1)
       (let [ba-ecnt (impl/encrypt-asymmetric asym-cipher-algo key-algo key-pub ba-content)]
-        (bytes/with-out [out] [24 ba-ecnt]
+        (bytes/with-out [out] [32 ba-ecnt]
           (df/write-head             out)
           (df/write-kid              out :envelope :encrypted-with-1-keypair-simple-v1)
+          (df/write-flags            out nil nil)
           ;; (bytes/write-dynamic-ba out ba-aad
           (df/write-kid              out :key-algo key-algo)
           (bytes/write-dynamic-ba    out ?ba-key-id)
@@ -672,12 +868,54 @@
           (df/write-kid              out :asym-cipher-algo asym-cipher-algo)
           ;; (bytes/write-dynamic-ba out ba-iv)
           (bytes/write-dynamic-ba    out ba-ecnt)
-          ;; (bytes/write-dynamic-ba out ba-ekey)
-          (df/write-resv             out))))))
+          ;; (bytes/write-dynamic-ba out ba-erkey)
+          #_(bytes/write-dynamic-ba  out ?ba-ebkey)
+          (df/write-resv             out)
+          #_(impl/write-ehmac        out baos false nil nil)
+          #_(df/write-resv           out)))
+
+      ;; Hybrid scheme:
+      ;;   - Use a random 1-time symmetric key to encrypt content
+      ;;   - Wrap symmetric key with asymmetric encryption, embed
+      #_(df/reference-data-formats :encrypted-with-1-keypair-hybrid-v1)
+      (let [{:keys [hash-algo sym-cipher-algo]} opts+
+            _ (have? some? hash-algo sym-cipher-algo)
+
+            sck        (impl/as-symmetric-cipher-kit sym-cipher-algo)
+            ba-iv      (impl/rand-ba (impl/sck-iv-len  sck))
+            ba-rkey    (impl/rand-ba (impl/sck-key-len sck)) ; Random 1-time symmetric key
+            ba-key     (impl/hmac hash-algo ba-rkey ba-akm ba-iv)
+
+            ba-ecnt    (let [ba-fkey (impl/derive-final-key hash-algo ba-key)]
+                         (impl/sck-encrypt sck ba-iv ba-fkey ba-content ba-aad))
+
+            ba-erkey   (impl/encrypt-asymmetric asym-cipher-algo key-algo key-pub ba-rkey)
+            ?ba-ebkey  (keys/get-backup-key-for-encryption ba-key opts+)
+            ehmac-size (if embed-hmac? (impl/hmac-len hash-algo) 0)]
+
+        (bytes/with-out [out baos]
+          [64 ba-ecnt ba-aad ?ba-ebkey ba-iv ba-erkey ehmac-size]
+          (df/write-head          out)
+          (df/write-kid           out :envelope :encrypted-with-1-keypair-hybrid-v1)
+          (df/write-flags         out nil {:has-hmac       (boolean embed-hmac?)
+                                           :has-backup-key (boolean ?ba-ebkey)})
+          (bytes/write-dynamic-ba out ba-aad)
+          (df/write-kid           out :key-algo key-algo)
+          (bytes/write-dynamic-ba out ?ba-key-id)
+          (df/write-kid           out :hash-algo        hash-algo)
+          (df/write-kid           out :sym-cipher-algo  sym-cipher-algo)
+          (df/write-kid           out :asym-cipher-algo asym-cipher-algo)
+          (bytes/write-dynamic-ba out ba-iv)
+          (bytes/write-dynamic-ba out ba-ecnt)
+          (bytes/write-dynamic-ba out ba-erkey)
+          (bytes/write-dynamic-ba out ?ba-ebkey)
+          (df/write-resv          out)
+          (impl/write-ehmac       out baos embed-hmac? hash-algo ba-key)
+          (df/write-resv          out))))))
 
 (comment
-  [(public-data-test (encrypt-with-1-keypair (impl/rand-ba 32)  (keychain)))
-   (public-data-test (encrypt-with-1-keypair (impl/rand-ba 128) (keychain)))])
+  [(public-data-test (encrypt-with-1-keypair (impl/rand-ba 32)  (keychain) {:scheme :auto :embed-hmac? false}))
+   (public-data-test (encrypt-with-1-keypair (impl/rand-ba 128) (keychain) {:scheme :auto :embed-hmac? false}))])
 
 (defn decrypt-with-1-keypair
   "Complement of `encrypt-with-1-keypair`.
@@ -690,81 +928,115 @@
 
   Takes a `KeyChain` (see `keychain`) or `KeyPair` (see `keypair-create`).
   Key algorithm must support use as an asymmetric cipher.
-  Suitable algorithms: `:rsa-<nbits>`
+  Suitable algorithms: `:rsa-<nbits>`.
 
   Encryption uses receiver's asymmetric public  key.
   Decryption uses receiver's asymmetric private key.
 
   Will throw on decryption failure (bad key, etc.)."
 
-  [ba-encrypted receiver-key-prv &
-   [{:keys [return ba-akm]
-     :or   {return :ba-content}}]]
+  #_(df/reference-data-formats :encrypted-with-1-keypair-<type>-v1)
+  {:arglists
+   '([ba-encrypted receiver-key-prv &
+      [:keys [return ba-akm backup-key backup-opts ignore-hmac?]
+       :or   {return :ba-content}]])}
 
-  (bytes/with-in [in] ba-encrypted
-    (let [_        (df/read-head! in)
-          env-kid  (df/read-kid   in :envelope
-                     #{:encrypted-with-1-keypair-hybrid-v1
-                       :encrypted-with-1-keypair-simple-v1})]
+  [ba-encrypted receiver-key-prv & [opts]]
+  (let [{:keys [return] :or {return :ba-content}} opts
+        {:keys [ba-akm backup-key backup-opts ignore-hmac?] :as opts+}
+        (get-opts+ opts)]
 
-      (case env-kid
-        :encrypted-with-1-keypair-hybrid-v1
-        #_(df/reference-data-formats :encrypted-with-1-keypair-hybrid-v1)
-        (let [?ba-aad          (bytes/read-dynamic-?ba  in)
-              key-algo         (df/read-kid             in :key-algo)
-              ?key-id          (bytes/read-dynamic-?str in)
-              hash-algo        (df/read-kid             in :hash-algo)
-              sym-cipher-algo  (df/read-kid             in :sym-cipher-algo)
-              asym-cipher-algo (df/read-kid             in :asym-cipher-algo)
-              ba-iv            (bytes/read-dynamic-ba   in)
-              ba-ecnt          (bytes/read-dynamic-ba   in)
-              ba-ekey          (bytes/read-dynamic-ba   in)
-              _                (df/read-resv!           in)
+    (bytes/with-in [in bais] ba-encrypted
+      (let [_       (df/read-head! in)
+            env-kid (df/read-kid   in :envelope
+                      #{:encrypted-with-1-keypair-hybrid-v1
+                        :encrypted-with-1-keypair-simple-v1})
+            _       (df/skip-flags in)]
 
-              sck       (impl/as-symmetric-cipher-kit sym-cipher-algo)
-              ckeys-prv (keys/get-ckeys-asym-cipher receiver-key-prv key-algo ?key-id)
-              ba-cnt
-              (keys/try-decrypt-with-keys! `decrypt-with-1-keypair
-                (some? ?key-id) ckeys-prv
-                (fn [ckey-prv]
-                  (let [{:keys [key-prv]} @ckey-prv
-                        ba-key-pre-akm  (impl/decrypt-asymmetric asym-cipher-algo
-                                          key-algo key-prv ba-ekey) ; Symmetric key
-                        ba-key-post-akm (impl/hmac hash-algo ba-key-pre-akm ba-akm)
-                        ba-cnt (impl/sck-decrypt sck ba-iv ba-key-post-akm ba-ecnt ?ba-aad)]
-                    ba-cnt)))]
+        (case env-kid
 
-          (return-val env-kid return ba-cnt ?ba-aad))
+          :encrypted-with-1-keypair-simple-v1
+          #_(df/reference-data-formats :encrypted-with-1-keypair-simple-v1)
+          (let [_
+                (when ba-akm
+                  (throw (ex-info "Failed to decrypt Tempel data (no AKM support)" {})))
 
-        :encrypted-with-1-keypair-simple-v1
-        #_(df/reference-data-formats :encrypted-with-1-keypair-simple-v1)
-        (let [;; ?ba-aad         (bytes/read-dynamic-?ba  in)
-              key-algo           (df/read-kid             in :key-algo)
-              ?key-id            (bytes/read-dynamic-?str in)
-              ;; hash-algo       (df/read-kid             in :hash-algo)
-              ;; sym-cipher-algo (df/read-kid             in :sym-cipher-algo)
-              asym-cipher-algo   (df/read-kid             in :asym-cipher-algo)
-              ;; ba-iv           (bytes/read-dynamic-ba   in)
-              ba-ecnt            (bytes/read-dynamic-ba   in)
-              ;; ba-ekey         (bytes/read-dynamic-ba   in)
-              _                  (df/read-resv!           in)
+                ;; ?ba-aad         (bytes/read-dynamic-?ba  in)
+                key-algo           (df/read-kid             in :key-algo)
+                ?key-id            (bytes/read-dynamic-?str in)
+                ;; hash-algo       (df/read-kid             in :hash-algo)
+                ;; sym-cipher-algo (df/read-kid             in :sym-cipher-algo)
+                asym-cipher-algo   (df/read-kid             in :asym-cipher-algo)
+                ;; ba-iv           (bytes/read-dynamic-ba   in)
+                ba-ecnt            (bytes/read-dynamic-ba   in)
+                ;; ba-erkey        (bytes/read-dynamic-ba   in)
+                ;; ?ba-ebkey       (bytes/read-dynamic-?ba  in)
+                _                  (df/read-resv!           in)
+                ;; ehmac*          (impl/read-ehmac*        in bais ba-encrypted)
+                ;;_                (df/read-resv!           in)
 
-              ckeys-prv (keys/get-ckeys-asym-cipher receiver-key-prv key-algo ?key-id)
-              ba-cnt
-              (keys/try-decrypt-with-keys! `decrypt-with-1-keypair
-                (some? ?key-id) ckeys-prv
-                (fn [ckey-prv]
-                  (let [{:keys [key-prv]} @ckey-prv
-                        ba-cnt (impl/decrypt-asymmetric asym-cipher-algo key-algo key-prv ba-ecnt)]
-                    ba-cnt)))]
+                ckeys-prv (keys/get-ckeys-asym-cipher receiver-key-prv key-algo ?key-id)
+                ba-cnt
+                (keys/try-decrypt-with-keys! `decrypt-with-1-keypair
+                  (some? ?key-id) ckeys-prv
+                  (fn [ckey-prv]
+                    (let [{:keys [key-prv]} @ckey-prv
+                          ba-cnt (impl/decrypt-asymmetric asym-cipher-algo key-algo key-prv ba-ecnt)]
+                      ba-cnt)))]
 
-          (return-val env-kid return ba-cnt nil))
+            (return-val env-kid return ba-cnt nil))
 
-        (enc/unexpected-arg! env-kid
-          {:context `decrypt-with-1-keypair
-           :expected
-           #{:encrypted-with-1-keypair-hybrid-v1
-             :encrypted-with-1-keypair-simple-v1}})))))
+          :encrypted-with-1-keypair-hybrid-v1
+          #_(df/reference-data-formats :encrypted-with-1-keypair-hybrid-v1)
+          (let [?ba-aad          (bytes/read-dynamic-?ba  in)
+                key-algo         (df/read-kid             in :key-algo)
+                ?key-id          (bytes/read-dynamic-?str in)
+                hash-algo        (df/read-kid             in :hash-algo)
+                sym-cipher-algo  (df/read-kid             in :sym-cipher-algo)
+                asym-cipher-algo (df/read-kid             in :asym-cipher-algo)
+                ba-iv            (bytes/read-dynamic-ba   in)
+                ba-ecnt          (bytes/read-dynamic-ba   in)
+                ba-erkey         (bytes/read-dynamic-ba   in)
+                ?ba-ebkey        (bytes/read-dynamic-?ba  in)
+                _                (df/read-resv!           in)
+                ehmac*           (impl/read-ehmac*        in bais ba-encrypted)
+                _                (df/read-resv!           in)
+
+                hmac-pass!
+                (fn [ba-key]
+                  (if (or ignore-hmac? (impl/ehmac-pass? ehmac* ba-encrypted hash-algo ba-key))
+                    ba-key
+                    (throw (ex-info error-msg-bad-ehmac {}))))
+
+                sck (impl/as-symmetric-cipher-kit sym-cipher-algo)
+                ba-cnt
+                (if-let [ba-key (keys/get-backup-key-for-decryption ?ba-ebkey opts+)]
+                  (try
+                    (let [ba-fkey (impl/derive-final-key hash-algo (hmac-pass! ba-key))]
+                      (impl/sck-decrypt sck ba-iv ba-fkey ba-ecnt ?ba-aad))
+
+                    (catch Throwable t
+                      (throw (ex-info error-msg-bad-backup-key {} t))))
+
+                  (let [ckeys-prv (keys/get-ckeys-asym-cipher receiver-key-prv key-algo ?key-id)]
+                    (keys/try-decrypt-with-keys! `decrypt-with-1-keypair
+                      (some? ?key-id) ckeys-prv
+                      (fn [ckey-prv]
+                        (let [{:keys [key-prv]} @ckey-prv
+                              ba-rkey (impl/decrypt-asymmetric asym-cipher-algo key-algo key-prv ba-erkey)
+                              ba-key  (impl/hmac hash-algo ba-rkey ba-akm ba-iv)
+                              ba-cnt
+                              (let [ba-fkey (impl/derive-final-key hash-algo (hmac-pass! ba-key))]
+                                (impl/sck-decrypt sck ba-iv ba-fkey ba-ecnt ?ba-aad))]
+                          ba-cnt)))))]
+
+            (return-val env-kid return ba-cnt ?ba-aad))
+
+          (enc/unexpected-arg! env-kid
+            {:context `decrypt-with-1-keypair
+             :expected
+             #{:encrypted-with-1-keypair-hybrid-v1
+               :encrypted-with-1-keypair-simple-v1}}))))))
 
 (comment
   (let [kc     (keychain)
@@ -780,7 +1052,7 @@
 
   Takes `KeyChain`s (see `keychain`) and/or `KeyPair`s (see `keypair-create`).
   Key algorithm must support key agreement.
-  Suitable algorithms: `:dh-<nbits>`, `:ec-<curve>`
+  Suitable algorithms: `:dh-<nbits>`, `:ec-<curve>`.
 
   Encryption uses:
     - Receiver's asymmetric public  key
@@ -796,22 +1068,32 @@
     `:ba-aad` - See `aad-help` docstring
     `:ba-akm` - See `akm-help` docstring
 
-  Relevant `*config*` keys (see that var's docstring for details):
-    `hash-algo`, `ka-algo`, `sym-cipher-algo`, `embed-key-ids?`"
+    And see `*config*` docstring for details:
+      `hash-algo`, `ka-algo`, `sym-cipher-algo`,
+      `embed-key-ids?`, `backup-key`, `backup-opts`."
 
   #_(df/reference-data-formats :encrypted-with-2-keypairs-v1)
-  ^bytes
-  [ba-content receiver-key-pub sender-key-prv &
-   [{:keys [ba-aad ba-akm, :config
-            hash-algo ka-algo sym-cipher-algo embed-key-ids?] :as opts}]]
+  {:arglists
+   '([ba-content receiver-key-pub sender-key-prv &
+      [{:keys
+        [ba-aad ba-akm
+         hash-algo ka-algo sym-cipher-algo
+         embed-key-ids? embed-hmac?
+         backup-key backup-opts]}]])}
 
+  ^bytes
+  [ba-content receiver-key-pub sender-key-prv & [opts]]
   ;; Hybrid scheme:
   ;;   - Gen symmetric key via key agreement
   ;;   - Use symmetric key to encrypt content
+  (let [{:as opts+
+         :keys
+         [ba-aad ba-akm
+          hash-algo ka-algo sym-cipher-algo
+          embed-key-ids? embed-hmac?
+          #_backup-key #_backup-opts]}
+        (get-opts+ opts)
 
-  ;; Ref. NIST SP 800-56A §5.9.1 to §5.9.3. for SKM/AKM
-
-  (let [{:keys [hash-algo ka-algo sym-cipher-algo embed-key-ids?]} (get-config opts)
         _ (have? some? hash-algo sym-cipher-algo)
 
         [recvr-ckey-pub sendr-ckey-prv] (keys/get-ckeys-ka receiver-key-pub sender-key-prv)
@@ -826,13 +1108,20 @@
         ba-iv   (impl/rand-ba (impl/sck-iv-len sck))
         ba-key
         (let [ba-shared-key (impl/key-shared-create ka-algo key-algo key-prv key-pub)]
-          (impl/hmac hash-algo ba-shared-key ba-akm ba-iv)) ; +IV for forward secrecy
+          (impl/hmac hash-algo ba-shared-key ba-akm ba-iv))
 
-        ba-ecnt (impl/sck-encrypt sck ba-iv ba-key ba-content ba-aad)]
+        ba-ecnt    (let [ba-fkey (impl/derive-final-key hash-algo ba-key)]
+                     (impl/sck-encrypt sck ba-iv ba-fkey ba-content ba-aad))
 
-    (bytes/with-out [out] [16 ba-ecnt ba-aad ?ba-recvr-key-id ?ba-sendr-key-id ba-iv]
+        ?ba-ebkey  (keys/get-backup-key-for-encryption ba-key opts+)
+        ehmac-size (if embed-hmac? (impl/hmac-len hash-algo) 0)]
+
+    (bytes/with-out [out baos]
+      [32 ba-ecnt ba-aad ?ba-recvr-key-id ?ba-sendr-key-id ?ba-ebkey ba-iv ehmac-size]
       (df/write-head          out)
       (df/write-kid           out :envelope :encrypted-with-2-keypairs-v1)
+      (df/write-flags         out nil {:has-hmac       (boolean embed-hmac?)
+                                       :has-backup-key (boolean ?ba-ebkey)})
       (bytes/write-dynamic-ba out ba-aad)
       (df/write-kid           out :key-algo key-algo)
       (bytes/write-dynamic-ba out ?ba-recvr-key-id)
@@ -842,6 +1131,9 @@
       (df/write-kid           out :sym-cipher-algo sym-cipher-algo)
       (bytes/write-dynamic-ba out ba-iv)
       (bytes/write-dynamic-ba out ba-ecnt)
+      (bytes/write-dynamic-ba out ?ba-ebkey)
+      (df/write-resv          out)
+      (impl/write-ehmac       out baos embed-hmac? hash-algo ba-key)
       (df/write-resv          out))))
 
 (comment (public-data-test (encrypt-with-2-keypairs (as-ba "cnt") (keychain) (keychain))))
@@ -857,7 +1149,7 @@
 
   Takes `KeyChain`s (see `keychain`) and/or `KeyPair`s (see `keypair-create`).
   Key algorithm must support key agreement.
-  Suitable algorithms: `:dh-<nbits>`, `:ec-<curve>`
+  Suitable algorithms: `:dh-<nbits>`, `:ec-<curve>`.
 
   Encryption uses:
     - Receiver's asymmetric public  key
@@ -870,49 +1162,74 @@
   Will throw on decryption failure (bad key, etc.)."
 
   #_(df/reference-data-formats :encrypted-with-2-keypairs-v1)
-  [ba-encrypted receiver-key-prv sender-key-pub &
-   [{:keys [return ba-akm]
-     :or   {return :ba-content}}]]
+  {:arglists
+   '([ba-encrypted receiver-key-prv sender-key-pub &
+      [{:keys [return ba-akm backup-key backup-opts ignore-hmac?]
+        :or   {return :ba-content}}]])}
 
-  (bytes/with-in [in] ba-encrypted
-    (let [env-kid         :encrypted-with-2-keypairs-v1
-          _               (df/read-head!           in)
-          _               (df/read-kid             in :envelope env-kid)
-          ?ba-aad         (bytes/read-dynamic-?ba  in)
-          key-algo        (df/read-kid             in :key-algo)
-          ?recvr-key-id   (bytes/read-dynamic-?str in)
-          ?sendr-key-id   (bytes/read-dynamic-?str in)
+  [ba-encrypted receiver-key-prv sender-key-pub & [opts]]
+  (let [{:keys [return] :or {return :ba-content}} opts
+        {:keys [ba-akm backup-key backup-opts ignore-hmac?] :as opts+}
+        (get-opts+ opts)]
 
-          hash-algo       (df/read-kid             in :hash-algo)
-          ka-algo         (df/read-kid             in :ka-algo)
-          sym-cipher-algo (df/read-kid             in :sym-cipher-algo)
-          ba-iv           (bytes/read-dynamic-ba   in)
-          ba-ecnt         (bytes/read-dynamic-ba   in)
-          _               (df/read-resv!           in)
+    (bytes/with-in [in bais] ba-encrypted
+      (let [env-kid         :encrypted-with-2-keypairs-v1
+            _               (df/read-head!           in)
+            _               (df/read-kid             in :envelope env-kid)
+            _               (df/skip-flags           in)
+            ?ba-aad         (bytes/read-dynamic-?ba  in)
+            key-algo        (df/read-kid             in :key-algo)
+            ?recvr-key-id   (bytes/read-dynamic-?str in)
+            ?sendr-key-id   (bytes/read-dynamic-?str in)
 
-          sck             (impl/as-symmetric-cipher-kit sym-cipher-algo)
+            hash-algo       (df/read-kid             in :hash-algo)
+            ka-algo         (df/read-kid             in :ka-algo)
+            sym-cipher-algo (df/read-kid             in :sym-cipher-algo)
+            ba-iv           (bytes/read-dynamic-ba   in)
+            ba-ecnt         (bytes/read-dynamic-ba   in)
+            ?ba-ebkey       (bytes/read-dynamic-?ba  in)
+            _               (df/read-resv!           in)
+            ehmac*          (impl/read-ehmac*        in bais ba-encrypted)
+            _               (df/read-resv!           in)
 
-          ckey-pairs ; [[<recvr-ckey-prv> <sendr-ckey-pub>] ...]
-          (keys/get-ckeys-ka key-algo
-            [receiver-key-prv ?recvr-key-id]
-            [sender-key-pub   ?sendr-key-id])
+            hmac-pass!
+            (fn [ba-key]
+              (if (or ignore-hmac? (impl/ehmac-pass? ehmac* ba-encrypted hash-algo ba-key))
+                ba-key
+                (throw (ex-info error-msg-bad-ehmac {}))))
 
-          ba-cnt
-          (keys/try-decrypt-with-keys! `decrypt-with-2-keypairs
-            (some? ?recvr-key-id) ckey-pairs
-            (fn [[recvr-ckey-prv sendr-ckey-pub]]
-              (let [{:keys [key-prv]} @recvr-ckey-prv
-                    {:keys [key-pub]} @sendr-ckey-pub
+            sck (impl/as-symmetric-cipher-kit sym-cipher-algo)
+            ba-cnt
+            (if-let [ba-key (keys/get-backup-key-for-decryption ?ba-ebkey opts+)]
+              (try
+                (let [ba-fkey (impl/derive-final-key hash-algo (hmac-pass! ba-key))]
+                  (impl/sck-decrypt sck ba-iv ba-fkey ba-ecnt ?ba-aad))
 
-                    ba-key
-                    (let [ba-shared-key (impl/key-shared-create ka-algo key-algo key-prv key-pub)]
-                      (impl/hmac hash-algo ba-shared-key ba-akm ba-iv))
+                (catch Throwable t
+                  (throw (ex-info error-msg-bad-backup-key {} t))))
 
-                    ba-cnt (impl/sck-decrypt sck ba-iv ba-key ba-ecnt ?ba-aad)]
+              (let [ckey-pairs ; [[<recvr-ckey-prv> <sendr-ckey-pub>] ...]
+                    (keys/get-ckeys-ka key-algo
+                      [receiver-key-prv ?recvr-key-id]
+                      [sender-key-pub   ?sendr-key-id])]
 
-                ba-cnt)))]
+                (keys/try-decrypt-with-keys! `decrypt-with-2-keypairs
+                  (some? ?recvr-key-id) ckey-pairs
+                  (fn [[recvr-ckey-prv sendr-ckey-pub]]
+                    (let [{:keys [key-prv]} @recvr-ckey-prv
+                          {:keys [key-pub]} @sendr-ckey-pub
 
-      (return-val env-kid return ba-cnt ?ba-aad))))
+                          ba-key
+                          (let [ba-shared-key (impl/key-shared-create ka-algo key-algo key-prv key-pub)]
+                            (impl/hmac hash-algo ba-shared-key ba-akm ba-iv))
+
+                          ba-cnt
+                          (let [ba-fkey (impl/derive-final-key hash-algo (hmac-pass! ba-key))]
+                            (impl/sck-decrypt sck ba-iv ba-fkey ba-ecnt ?ba-aad))]
+
+                      ba-cnt)))))]
+
+        (return-val env-kid return ba-cnt ?ba-aad)))))
 
 (comment
   (let [kc1    (keychain)
@@ -929,31 +1246,47 @@
     - Optional unencrypted AAD     (see `aad-help` docstring)
     - Envelope data necessary for verification (specifies algorithms, etc.)
 
-  Basically produces:
+  Produces:
     - Signed content when `embed-content?` is true (default)
     - A signature    when `embed-content?` is false
 
   Takes a `KeyChain` (see `keychain`) or `KeyPair` (see `keypair-create`).
   Key algorithm must support signatures.
-  Suitable algorithms: `:rsa-<nbits>`, `:ec-<curve>`
+  Suitable algorithms: `:rsa-<nbits>`, `:ec-<curve>`.
 
   Signing      uses signer's asymmetric private key.
   Verification uses signer's asymmetric public  key.
 
   Verify with: `signed`.
 
-  Relevant `*config*` keys (see that var's docstring for details):
-    `hash-algo`, `sig-algo`, `embed-key-ids?`"
+  Options:
+    `:ba-aad`         - See `aad-help` docstring
+    `:ba-akm`         - See `akm-help` dosctring
+    `:embed-content?` - See usage info above
+
+    And see `*config*` docstring for details:
+      `hash-algo`, `sig-algo`, `embed-key-ids?`."
 
   #_(df/reference-data-formats :signed-v1)
-  ^bytes
-  [ba-content signer-key-prv &
-   [{:keys [ba-aad ba-akm embed-content?, :config
-            hash-algo sig-algo embed-key-ids?]
-     :as opts
-     :or {embed-content? true}}]]
+  {:arglists
+   '([ba-content signer-key-prv &
+      [{:keys
+        [ba-aad ba-akm embed-content?
+         hash-algo sig-algo
+         embed-key-ids? embed-content?]
 
-  (let [{:keys [hash-algo sig-algo embed-key-ids?]} (get-config opts)
+        :or {embed-content? true}}]])}
+
+  ^bytes
+  [ba-content signer-key-prv & [opts]]
+  (let [{:keys [embed-content?] :or {embed-content? true}} opts
+        {:as opts+
+         :keys
+         [ba-aad ba-akm
+          hash-algo sig-algo
+          embed-key-ids?]}
+        (get-opts+ opts)
+
         _ (have? some? hash-algo)
 
         ckey-prv (keys/get-ckeys-sig signer-key-prv)
@@ -965,9 +1298,11 @@
         ba-to-sign (impl/hash-ba-cascade hash-algo ba-content ba-akm ba-aad)
         ba-sig     (impl/signature-create sig-algo key-algo key-prv ba-to-sign)]
 
-    (bytes/with-out [out] [8 ba-aad ?ba-key-id ba-sig ?ba-em-cnt]
+    (bytes/with-out [out]
+      [11 ba-aad ?ba-key-id ba-sig ?ba-em-cnt]
       (df/write-head          out)
       (df/write-kid           out :envelope :signed-v1)
+      (df/write-flags         out nil nil)
       (bytes/write-dynamic-ba out ba-aad)
       (df/write-kid           out :key-algo key-algo)
       (bytes/write-dynamic-ba out ?ba-key-id)
@@ -994,43 +1329,50 @@
 
   Takes a `KeyChain` (see `keychain`) or `KeyPair` (see `keypair-create`).
   Key algorithm must support signatures.
-  Suitable algorithms: `:rsa-<nbits>`, `:ec-<curve>`
+  Suitable algorithms: `:rsa-<nbits>`, `:ec-<curve>`.
 
   Signing      uses signer's asymmetric private key.
   Verification uses signer's asymmetric public  key."
 
   #_(df/reference-data-formats :signature-v1)
-  [ba-signed signer-key-pub &
-   [{:keys [return ba-content ba-akm]
-     :or   {return :as-map}}]]
+  {:arglists
+   '([ba-signed signer-key-pub &
+      [{:keys [ba-content return ba-akm]
+        :or   {return :as-map}}]])}
 
-  (bytes/with-in [in] ba-signed
-    (let [env-kid    :signed-v1
-          _          (df/read-head!           in)
-          _          (df/read-kid             in :envelope env-kid)
-          ?ba-aad    (bytes/read-dynamic-?ba  in)
-          key-algo   (df/read-kid             in :key-algo)
-          ?key-id    (bytes/read-dynamic-?str in)
-          ?ba-em-cnt (bytes/read-dynamic-?ba  in)
-          hash-algo  (df/read-kid             in :hash-algo)
-          sig-algo   (df/read-kid             in :sig-algo)
-          ba-sig     (bytes/read-dynamic-ba   in)
-          _          (df/read-resv!           in)
+  [ba-signed signer-key-pub & [opts]]
+  (let [{:keys [ba-content return] :or {return :as-map}} opts
+        {:keys [ba-akm] :as opts+}
+        (get-opts+ opts)]
 
-          ba-cnt     (or ba-content ?ba-em-cnt)
-          ckeys-pub  (keys/get-ckeys-sig signer-key-pub key-algo ?key-id)
-          ba-to-sign (impl/hash-ba-cascade hash-algo ba-cnt ba-akm ?ba-aad)
+    (bytes/with-in [in] ba-signed
+      (let [env-kid    :signed-v1
+            _          (df/read-head!           in)
+            _          (df/read-kid             in :envelope env-kid)
+            _          (df/skip-flags           in)
+            ?ba-aad    (bytes/read-dynamic-?ba  in)
+            key-algo   (df/read-kid             in :key-algo)
+            ?key-id    (bytes/read-dynamic-?str in)
+            ?ba-em-cnt (bytes/read-dynamic-?ba  in)
+            hash-algo  (df/read-kid             in :hash-algo)
+            sig-algo   (df/read-kid             in :sig-algo)
+            ba-sig     (bytes/read-dynamic-ba   in)
+            _          (df/read-resv!           in)
 
-          {:keys [success _error _errors]}
-          (keys/try-keys (some? ?key-id) ckeys-pub
-            (fn [ckey-pub]
-              (let [{:keys [key-pub]} @ckey-pub]
-                (if (impl/signature-verify sig-algo key-algo key-pub ba-to-sign ba-sig)
-                  {:ba-content ba-cnt
-                   :ba-aad     ?ba-aad}))))]
+            ba-cnt     (or ba-content ?ba-em-cnt)
+            ckeys-pub  (keys/get-ckeys-sig signer-key-pub key-algo ?key-id)
+            ba-to-sign (impl/hash-ba-cascade hash-algo ba-cnt ba-akm ?ba-aad)
 
-      (when-let [{:keys [ba-content ba-aad]} success]
-        (return-val `signed return ba-content ba-aad)))))
+            {:keys [success _error _errors]}
+            (keys/try-keys (some? ?key-id) ckeys-pub
+              (fn [ckey-pub]
+                (let [{:keys [key-pub]} @ckey-pub]
+                  (if (impl/signature-verify sig-algo key-algo key-pub ba-to-sign ba-sig)
+                    {:ba-content ba-cnt
+                     :ba-aad     ?ba-aad}))))]
+
+        (when-let [{:keys [ba-content ba-aad]} success]
+          (return-val `signed return ba-content ba-aad))))))
 
 (comment
   (let [kc        (keychain)

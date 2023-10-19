@@ -13,17 +13,60 @@
   (:api (enc/interns-overview)))
 
 (enc/declare-remote
-  taoensso.tempel/get-config
+  taoensso.tempel/get-opts+
   taoensso.tempel/encrypt-with-1-keypair
   taoensso.tempel/decrypt-with-1-keypair)
 
 (alias 'core 'taoensso.tempel)
 
+;;;; Backup keys
+
+(defn get-backup-key-for-encryption
+  "Returns nil, or encrypted symmetric backup key (`?ba-ebkey`). This is
+  a 1kp-encrypted copy of the (post-AKM!) key from which the final key
+  will be derived:
+    1. (hmac primary-key + AKM, etc.) -> final-sym-key-used-for-encryption
+    2. (1kp-decrypt ?ba-ebkey)        -> final-sym-key-used-for-encryption"
+  [ba-key encrypt-opts]
+  (let [{:keys [backup-key backup-opts]} encrypt-opts]
+    (when backup-key
+      (let [backup-opts
+            (let [base-opts
+                  (->
+                    encrypt-opts
+                    (dissoc :ba-aad :ba-akm :backup-key)
+                    (assoc  :embed-hmac? false :scheme :auto))]
+              (core/get-opts+ base-opts backup-opts))]
+        (try
+          (core/encrypt-with-1-keypair (have enc/bytes? ba-key) backup-key backup-opts)
+          (catch Throwable t
+            (throw (ex-info "Failed to enable backup key support during encryption" {} t))))))))
+
+(defn get-backup-key-for-decryption
+  "Returns `?ba-bkey` or decrypted (symmetric) backup key.
+  Complement of `get-backup-key-for-encryption`."
+  [?ba-ebkey decrypt-opts]
+  (when-let [^bytes ba-ebkey ?ba-ebkey]
+    (let [{:keys [backup-key backup-opts]} decrypt-opts]
+      (when backup-key
+        (let [backup-opts
+              (let [base-opts
+                    (->
+                      decrypt-opts
+                      (dissoc :ba-aad :ba-akm :backup-key))]
+                (assoc
+                  (core/get-opts+ base-opts backup-opts)
+                  :return :ba-content))]
+          (try
+            (core/decrypt-with-1-keypair ba-ebkey backup-key backup-opts)
+            (catch Throwable t
+              (throw (ex-info "Failed to decrypt embedded backup key" {} t)))))))))
+
 ;;;; ChainKey
 
 (deftype ChainKey [key-type key-algo ?meta ?key-id key-cnt]
   Object
-  (equals   [this other] (impl/cnt=     key-cnt (.-key-cnt ^ChainKey other)))
+  (equals   [this other] (and (instance? ChainKey other) (impl/cnt= key-cnt (.-key-cnt ^ChainKey other))))
   (hashCode [this]       (impl/cnt-hash key-cnt))
   (toString [this]
     (let [m (select-keys @this [:key-algo :symmetric? :private? :public?])]
@@ -168,7 +211,7 @@
 
 (defprotocol IKeyChain
   (keychain-counts  [kc]             "Returns {:keys [n-sym n-prv n-pub]}")
-  (keychain-freeze  [kc]             "Returns {:keys [ba-kc-prv ba-kc-pub]}")
+  (keychain-freeze  [kc]             "Returns {:keys [ba-kc-prv ba-kc-pub ba-kc_]}")
   (keychain-ckeys   [kc index-path]  "Returns sorted ?[<ChainKey> ... <ChainKey>]")
   (keychain-update  [kc validate? f] "Returns (possibly new) `KeyChain`"))
 
@@ -186,7 +229,7 @@
   Object
   (toString [this] (str "KeyChain[" @m-key-counts_ " " (enc/ident-hex-str this) "]"))
   (hashCode [this] (hash m-keychain))
-  (equals   [this other] (= m-keychain (.-m-keychain ^KeyChain other)))
+  (equals   [this other] (and (instance? KeyChain other) (= m-keychain (.-m-keychain ^KeyChain other))))
 
   clojure.lang.IObj
   (meta     [_  ] ?meta)
@@ -214,8 +257,9 @@
     ?meta))
 
 (defn keychain-restore
-  ([          ba-kc-pub] (-keychain nil (mkc-thaw nil       ba-kc-pub)))
-  ([ba-kc-prv ba-kc-pub] (-keychain nil (mkc-thaw ba-kc-prv ba-kc-pub))))
+  "Thaws `KeyChain` from frozen byte[]s."
+  ([ba-kc-prv ba-kc-pub] (-keychain nil (mkc-thaw ba-kc-prv ba-kc-pub)))
+  ([ba-kc_             ] (-keychain nil (mkc-thaw ba-kc_))))
 
 ;;;; KeyChain public utils
 
@@ -232,7 +276,7 @@
     `:as-map`   - Returns {:keys [keychain changed? key-id]}"
 
   [keychain x-key &
-   [{:keys [return key-id priority]
+   [{:keys [key-id priority return]
      :or   {return :keychain}}]]
 
   (have? keychain? keychain)
@@ -273,16 +317,19 @@
     `:keychain` - Returns (possibly new) `KeyChain` (default)
     `:as-map`   - Returns {:keys [keychain changed? key-id]}
 
-  Relevant `*config*` keys (see that var's docstring for details):
-    `keypair-creator`."
+    And see `*config*` docstring for details:
+      `keypair-creator`."
 
-  [keychain x-keypair &
-   [{:keys [return key-id priority, :config keypair-creator]
-     :or   {return :keychain}
-     :as   opts}]]
+  {:arglists
+   '([keychain x-keypair &
+      [{:keys [key-id priority return]
+        :or   {return :keychain}}]])}
 
+  [keychain x-keypair & [opts]]
   (have? keychain? keychain)
-  (let [{:keys [keypair-creator]} (core/get-config opts)
+  (let [{:keys [key-id priority return] :or {return :keychain}} opts
+        {:keys [keypair-creator] :as opts+} (core/get-opts+ opts)
+
         keypair
         (have [:instance? java.security.KeyPair]
           (enc/cond
@@ -385,9 +432,9 @@
   Options:
     `:keep-private?` - Should only the public component of keypairs
                        be removed? (Default true)"
-  [keychain key-id
-   & [{:keys [keep-private?]
-       :or   {keep-private? true}}]]
+  [keychain key-id &
+   [{:keys [keep-private?]
+     :or   {keep-private? true}}]]
 
   (have? keychain? keychain)
   (have? string?   key-id)
@@ -416,19 +463,26 @@
     :symmetric-keys      [:random :random (byte-array [1 2 3 4))]
     :asymmetric-keypairs [:rsa-1024 :dh-1024 :ec-secp384r1])
 
-  Relevant `*config*` keys (see that var's docstring for details):
-    `keypair-creator`, `symmetric-keys`, `asymmetric-keys`."
+  Options:
+    `:empty?` - When truthy, returns a `KeyChain` without any keys
+    `:only?`  - When truthy, returns a `KeyChain` with keys ONLY as
+                specified in call options (ignores any keys specified in `*config*`)
 
-  [& [{:keys [empty?, :config
-              symmetric-keys asymmetric-keypairs keypair-creator] :as opts}]]
+    And see `*config*` docstring for details:
+      `symmetric-keys`, `asymmetric-keys`, `keypair-creator`."
 
-  (if empty?
-    (-keychain nil {})
-    (let [{:keys [symmetric-keys asymmetric-keypairs]} (if (get opts :only?) opts (core/get-config opts))
-          kc  (-keychain nil {})
-          kc  (reduce (fn [acc in] (keychain-add-symmetric-key      acc in opts)) kc symmetric-keys)
-          kc  (reduce (fn [acc in] (keychain-add-asymmetric-keypair acc in opts)) kc asymmetric-keypairs)]
-      kc)))
+  {:arglists '([& [{:keys [empty? only? symmetric-keys asymmetric-keys keypair-creator]}]])}
+  [& [opts]]
+  (let [{:keys [empty? only?]} opts]
+    (if empty?
+      (-keychain nil {})
+      (let [{:keys [symmetric-keys asymmetric-keypairs keypair-creator] :as opts+}
+            (if only? opts (core/get-opts+ opts))
+
+            kc  (-keychain nil {})
+            kc  (reduce (fn [acc in] (keychain-add-symmetric-key      acc in opts+)) kc symmetric-keys)
+            kc  (reduce (fn [acc in] (keychain-add-asymmetric-keypair acc in opts+)) kc asymmetric-keypairs)]
+        kc))))
 
 (comment
   @(keychain)
@@ -442,7 +496,7 @@
 ;;;; State utils
 
 (defn- mkc-key-counts
-  "Returns {:keys [n-sym n-prv n-pub]}"
+  "Returns {:keys [n-sym n-prv n-pub]}."
   [m-keychain]
   (reduce-kv
     (fn [acc _key-id m-in]
@@ -497,7 +551,7 @@
 (comment (= (mkc-index reference-mkc) reference-midx))
 
 (defn- mkc-freeze
-  "Returns {:keys [ba-kc-prv ba-kc-pub]}."
+  "Returns {:keys [ba-kc-prv ba-kc-pub ba-kc_]}."
   #_(df/reference-data-formats :keychain-<part>-v1)
   [m-keychain]
   (have? map? m-keychain)
@@ -562,6 +616,7 @@
             (bytes/with-out [out] [8192]
               (df/write-head      out)
               (df/write-kid       out :envelope env-kid)
+              (df/write-flags     out nil nil)
               (df/write-resv      out)
               (bytes/write-ushort out (count mkc))
               (bytes/write-ushort out 0) ; Reserved for possible idx, etc.
@@ -574,10 +629,18 @@
                     (bytes/write-ushort     out priority)
                     (bytes/write-dynamic-ba out key-ba)))
                 mkc)
-              (df/write-resv out))))]
+              (df/write-resv out))))
 
-    {:ba-kc-prv (freeze-part :ba-kc-prv :keychain-prv-v1)
-     :ba-kc-pub (freeze-part :ba-kc-pub :keychain-pub-v1)}))
+        ba-kc-prv (freeze-part :ba-kc-prv :keychain-prv-v1)
+        ba-kc-pub (freeze-part :ba-kc-pub :keychain-pub-v1)]
+
+    {:ba-kc-prv ba-kc-prv
+     :ba-kc-pub ba-kc-pub
+     :ba-kc_
+     (delay
+       (bytes/with-out [out] [10 ba-kc-prv ba-kc-pub]
+         (bytes/write-dynamic-ba out ba-kc-prv)
+         (bytes/write-dynamic-ba out ba-kc-pub)))}))
 
 (comment
   (enc/map-vals count (keychain-freeze (keychain {:empty? true})))
@@ -590,51 +653,60 @@
 
 (defn- mkc-thaw
   #_(df/reference-data-formats :keychain-<part>-v1)
-  [ba-kc-prv ba-kc-pub]
-  (have? [:or nil? enc/bytes?] ba-kc-prv ba-kc-pub)
-  (let [thaw1
-        (fn [acc env-kid ba]
-          (bytes/with-in [in] ba
-            (df/read-head!     in)
-            (df/read-kid       in :envelope env-kid)
-            (df/read-resv      in)
-            (let [n-entries (bytes/read-ushort in)
-                  _resv     (bytes/read-ushort in)
-                  acc
-                  (enc/reduce-n
-                    (fn [acc _]
-                      (let [key-id   (bytes/read-dynamic-str in)
-                            key-type (df/read-kid in :key-type)
-                            mkc-entry
-                            (when key-type
-                              (let [key-algo (df/read-kid           in :key-algo)
-                                    priority (bytes/read-ushort     in)
-                                    key-ba   (bytes/read-dynamic-ba in) ; Was previously ?ba
-                                    [key-at key-cnt]
-                                    (case key-type
-                                      :sym [:key-sym (do                           key-ba)]
-                                      :prv [:key-prv (impl/as-key-prv key-algo nil key-ba)]
-                                      :pub [:key-pub (impl/as-key-pub key-algo nil key-ba)]
-                                      (enc/unexpected-arg! key-type
-                                        {:expected #{:sym :prv :pub}
-                                         :context  `mkc-thaw}))
 
-                                    ckey (ChainKey. (have key-type) (have key-algo) nil key-id key-cnt)]
-                                {:key-algo key-algo, :priority priority, key-at ckey}))]
+  ([ba-kc_]
+   (when-let [ba-kc (force ba-kc_)]
+     (bytes/with-in [in] ba-kc
+       (let [?ba-kc-prv (bytes/read-dynamic-?ba in)
+             ?ba-kc-pub (bytes/read-dynamic-?ba in)]
+         (mkc-thaw ?ba-kc-prv ?ba-kc-pub)))))
 
-                        (update acc key-id
-                          (fn [m] (conj (or m {}) mkc-entry)))))
+  ([ba-kc-prv ba-kc-pub]
+   (have? [:or nil? enc/bytes?] ba-kc-prv ba-kc-pub)
+   (let [thaw1
+         (fn [acc env-kid ba]
+           (bytes/with-in [in] ba
+             (df/read-head!     in)
+             (df/read-kid       in :envelope env-kid)
+             (df/skip-flags     in)
+             (df/read-resv      in)
+             (let [n-entries (bytes/read-ushort in)
+                   _resv     (bytes/read-ushort in)
+                   acc
+                   (enc/reduce-n
+                     (fn [acc _]
+                       (let [key-id   (bytes/read-dynamic-str in)
+                             key-type (df/read-kid in :key-type)
+                             mkc-entry
+                             (when key-type
+                               (let [key-algo (df/read-kid           in :key-algo)
+                                     priority (bytes/read-ushort     in)
+                                     key-ba   (bytes/read-dynamic-ba in) ; Was previously ?ba
+                                     [key-at key-cnt]
+                                     (case key-type
+                                       :sym [:key-sym (do                           key-ba)]
+                                       :prv [:key-prv (impl/as-key-prv key-algo nil key-ba)]
+                                       :pub [:key-pub (impl/as-key-pub key-algo nil key-ba)]
+                                       (enc/unexpected-arg! key-type
+                                         {:expected #{:sym :prv :pub}
+                                          :context  `mkc-thaw}))
 
-                    acc n-entries)]
+                                     ckey (ChainKey. (have key-type) (have key-algo) nil key-id key-cnt)]
+                                 {:key-algo key-algo, :priority priority, key-at ckey}))]
 
-              (df/read-resv in)
-              acc)))
+                         (update acc key-id
+                           (fn [m] (conj (or m {}) mkc-entry)))))
 
-        mkc {}
-        mkc (if-let [ba ba-kc-prv] (thaw1 mkc :keychain-prv-v1 ba) mkc)
-        mkc (if-let [ba ba-kc-pub] (thaw1 mkc :keychain-pub-v1 ba) mkc)]
+                     acc n-entries)]
 
-    mkc))
+               (df/read-resv in)
+               acc)))
+
+         mkc {}
+         mkc (if-let [ba ba-kc-prv] (thaw1 mkc :keychain-prv-v1 ba) mkc)
+         mkc (if-let [ba ba-kc-pub] (thaw1 mkc :keychain-pub-v1 ba) mkc)]
+
+     mkc)))
 
 (comment
   (let [kc (keychain {:symmetric-keys      [(impl/rand-ba 32)]
@@ -651,7 +723,7 @@
 
 (defn get-ckeys-sym-cipher
   "Arity 1: for encryption =>  <ckey>
-   Arity 2: for decryption => [<ckey> ...]"
+   Arity 2: for decryption => [<ckey> ...]."
   ([x-sym]
    (if (keychain? x-sym)
      (or
@@ -679,7 +751,7 @@
 
 (defn get-ckeys-asym-cipher
   "Arity 1: for encryption =>  <ckey>
-   Arity 3: for decryption => [<ckey> ...]"
+   Arity 3: for decryption => [<ckey> ...]."
   ([x-pub]
    (if (keychain? x-pub)
      (or
@@ -707,7 +779,7 @@
 
 (defn get-ckeys-sig
   "Arity 1: for signing      =>  <ckey>
-   Arity 3: for verification => [<ckey> ...]"
+   Arity 3: for verification => [<ckey> ...]."
   ([x-prv]
    (if (keychain? x-prv)
      (or
@@ -753,7 +825,7 @@
         (and algo-prv (= algo-prv algo-pub))))))
 
 (defn- get-ckeys-ka*
-  "Returns ?[<ckey> ...], may throw"
+  "Returns ?[<ckey> ...], may throw."
   [fail! prv? ?key-algo [x ?key-id]]
   (if (keychain? x)
     (if-let [key-id ?key-id]
@@ -769,7 +841,7 @@
 
 (defn get-ckeys-ka
   "Arity 2: for encryption =>  [<receiver-ckey-pub> <sender-ckey-prv>]
-   Arity 3: for decryption => [[<receiver-ckey-prv> <sender-ckey-pub>] ...]"
+   Arity 3: for decryption => [[<receiver-ckey-prv> <sender-ckey-pub>] ...]."
   ([receiver-x-pub sender-x-prv]
    (let [fail! (fn [cause] (missing-ckey! cause
                              {:context :encrypt-with-2-keypairs,
@@ -833,10 +905,6 @@
 
 ;;;; KeyChain encryption
 
-(do ; 256 bit consts for derived keys
-  (def ^:private ba-const-derive-ekc-key  (byte-array [-67 -126 -10 -25 37 -82 -63 -86 -73 -105 -87 45 -81 12 -128 71 -106 -68 -47 127 -70 65 22 -123 -88 -110 40 11 -17 108 -41 -93]))
-  (def ^:private ba-const-derive-ekc-hmac (byte-array [15 78 105 -122 -125 -89 109 -109 -8 -111 -31 62 -56 -5 18 75 53 -114 -117 115 -127 -109 -10 92 -24 -15 85 -100 -4 -74 75 -67])))
-
 (defn ^:public keychain-encrypt
   "Given a `KeyChain` and password (string, byte[], or char[]), returns a
   byte[] that includes:
@@ -861,63 +929,69 @@
     `:ba-content` - Optional additional byte[] content that should be encrypted
                     and included in output for retrieval with `keychain-decrypt`.
 
-    `:backup-key-pub`
-      Optional `KeyChain` (see `keychain`) or `KeyPair` (see `keypair-create`)
-      that may later be used as a backup decryption mechanism if given password
-      is forgotten, etc.
-
-      Key algorithm must support use as an asymmetric cipher.
-      Suitable algorithms: `:rsa-<nbits>`
-
-  Relevant `*config*` keys (see that var's docstring for details):
-    `hash-algo`, `sym-cipher-algo`, `pbkdf-algo`, `pbkdf-nwf`"
+    And see `*config*` docstring for details:
+      `hash-algo`, `sym-cipher-algo`, `pbkdf-algo`, `pbkdf-nwf`,
+      `embed-hmac?`, `backup-key`, `backup-opts`."
 
   #_(df/reference-data-formats :encrypted-keychain-v1)
-  ^bytes
-  [keychain password &
-   [{:keys [ba-aad ba-akm ba-content embed-hmac?
-            backup-key-pub backup-opts, :config
-            hash-algo sym-cipher-algo pbkdf-algo pbkdf-nwf]
-     :or {embed-hmac? true}
-     :as opts}]]
+  {:arglists
+   '([keychain password &
+      [{:keys
+        [ba-content
+         ba-aad ba-akm
+         hash-algo sym-cipher-algo
+         pbkdf-algo pbkdf-nwf
+         embed-hmac?
+         backup-key backup-opts]}]])}
 
+  ^bytes
+  [keychain password & [opts]]
   (have? keychain? keychain)
-  (let [{:keys [hash-algo sym-cipher-algo
-                pbkdf-algo pbkdf-nwf]} (core/get-config opts)
+  (let [{:keys [ba-content]} opts
+        {:as opts+
+         :keys
+         [#_ba-content
+          ba-aad ba-akm
+          hash-algo sym-cipher-algo
+          pbkdf-algo pbkdf-nwf
+          embed-hmac?
+          #_backup-key #_backup-opts]}
+        (core/get-opts+ opts)
+
         _ (have? some? hash-algo sym-cipher-algo pbkdf-algo pbkdf-nwf)
 
         sck       (impl/as-symmetric-cipher-kit sym-cipher-algo)
         ba-iv     (impl/rand-ba impl/max-sym-key-len)
-        ba-salt   (impl/hmac hash-algo ba-iv (bytes/str->utf8-ba "iv->salt"))
+        ba-salt   (impl/hmac hash-algo ba-iv impl/ba-const-iv->salt)
         pbkdf-nwf (pbkdf/pbkdf-nwf-parse pbkdf-algo pbkdf-nwf)
 
         ba-key
         (let [;; Key stretched from pwd
-              ba-pkey (pbkdf/pbkdf pbkdf-algo impl/max-sym-key-len
-                        ba-salt password pbkdf-nwf)]
-          (impl/hmac hash-algo ba-pkey ba-akm ba-const-derive-ekc-key))
+              ba-pkey (pbkdf/pbkdf pbkdf-algo impl/max-sym-key-len ba-salt password pbkdf-nwf)]
+          (impl/hmac hash-algo ba-pkey ba-akm))
 
-        ?ba-ekey
-        (when backup-key-pub
-          (have enc/bytes?
-            (core/encrypt-with-1-keypair ba-key backup-key-pub
-              (or backup-opts (dissoc opts :ba-aad :ba-akm)))))
-
+        ?ba-ebkey (get-backup-key-for-encryption ba-key opts+)
         {:keys [ba-kc-prv ba-kc-pub]} (keychain-freeze keychain)
 
         ba-cnt ; Private content
         (bytes/with-out [out] [11 ba-kc-prv ba-content]
           (bytes/write-dynamic-ba out ba-kc-prv)
           (bytes/write-dynamic-ba out ba-content)
-          (df/write-resv       out))
+          (df/write-resv          out))
 
-        ba-ecnt (impl/sck-encrypt sck ba-iv ba-key ba-cnt ba-aad)
+        ba-ecnt
+        (let [ba-fkey (impl/derive-final-key hash-algo ba-key)]
+          (impl/sck-encrypt sck ba-iv ba-fkey ba-cnt ba-aad))
+
+        ehmac-size (if embed-hmac? (impl/hmac-len hash-algo) 0)
+
         ba-ekc ; ba-encrypted-keychain
         (bytes/with-out [out baos]
-          [64 ba-aad ba-kc-pub ba-iv ba-ecnt ?ba-ekey (if embed-hmac? 32 0)]
+          [67 ba-aad ?ba-ebkey ba-kc-pub ba-iv ba-ecnt ehmac-size]
 
           (df/write-head          out)
           (df/write-kid           out :envelope :encrypted-keychain-v1)
+          (df/write-flags         out nil nil)
           (bytes/write-dynamic-ba out ba-aad)
           (bytes/write-dynamic-ba out ba-kc-pub)
           (df/write-resv          out)
@@ -931,23 +1005,15 @@
 
           (bytes/write-dynamic-ba out ba-iv)
           (bytes/write-dynamic-ba out ba-ecnt)
-          (df/write-resv          out) ; Reserved for num of backup keys, etc.
-          (bytes/write-dynamic-ba out ?ba-ekey)
+          (bytes/write-dynamic-ba out ?ba-ebkey)
           (df/write-resv          out)
-
-          (let [?ba-hmac
-                (when embed-hmac?
-                  (let [ba-to-hash (.toByteArray baos)] ; Whole ba till now
-                    (impl/hmac hash-algo ba-key
-                      ba-const-derive-ekc-hmac ba-to-hash)))]
-            (bytes/write-dynamic-ba out ?ba-hmac))
-
-          (df/write-resv out))]
+          (impl/write-ehmac       out baos embed-hmac? hash-algo ba-key)
+          (df/write-resv          out))]
 
     ba-ekc))
 
 (comment
-  ;; [3691 124 163] bytes
+  ;; [3696 127 166] bytes
   [(let [kc (keychain)               ]                            (count (keychain-encrypt kc "pwd" {})))
    (let [kc (keychain {:empty? true})]                            (count (keychain-encrypt kc "pwd" {})))
    (let [kc (keychain {:only?  true, :symmetric-keys [:random]})] (count (keychain-encrypt kc "pwd" {})))])
@@ -969,18 +1035,24 @@
   See Tempel Wiki for detailed usage info, common patterns, examples, etc."
 
   #_(df/reference-data-formats :encrypted-keychain-v1)
-  [ba-encrypted-keychain password &
-   [{:keys [return ba-akm backup-key-prv backup-opts ignore-hmac?]
-     :or   {return :keychain}
-     :as   opts}]]
+  {:arglists
+   '([ba-encrypted-keychain password &
+      [{:keys [return ba-akm backup-key backup-opts ignore-hmac?]
+        :or   {return :keychain}}]])}
 
-  (let [ba-ekc (have enc/bytes? ba-encrypted-keychain)]
+  [ba-encrypted-keychain password & [opts]]
+  (let [ba-ekc (have enc/bytes? ba-encrypted-keychain)
+        {:keys [return] :or {return :keychain}} opts
+        {:keys [ba-akm backup-key backup-opts ignore-hmac?] :as opts+}
+        (core/get-opts+ opts)]
+
     (bytes/with-in [in bais] ba-ekc
       (let [env-kid         :encrypted-keychain-v1
             _               (df/read-head!          in)
             _               (df/read-kid            in :envelope env-kid)
+            _               (df/skip-flags          in)
             ?ba-aad         (bytes/read-dynamic-?ba in)
-            ba-kc-pub       (bytes/read-dynamic-ba  in) ; Was previously ?ba
+            ?ba-kc-pub      (bytes/read-dynamic-?ba in)
             _               (df/read-resv!          in)
             hash-algo       (df/read-kid            in :hash-algo)
             sym-cipher-algo (df/read-kid            in :sym-cipher-algo)
@@ -990,55 +1062,35 @@
             _               (df/read-resv!          in)
             ba-iv           (bytes/read-dynamic-ba  in)
             ba-ecnt         (bytes/read-dynamic-ba  in)
+            ?ba-ebkey       (bytes/read-dynamic-?ba in)
             _               (df/read-resv!          in)
-            ?ba-ekey        (bytes/read-dynamic-?ba in)
-            _               (df/read-resv!          in)
-            hmac-idx        (- (alength ^bytes ba-ekc) (.available bais))
-            ?ba-hmac        (bytes/read-dynamic-?ba in)
+            ehmac*          (impl/read-ehmac*       in bais ba-ekc)
             _               (df/read-resv           in)
 
-            ba-salt (or ?ba-salt (impl/hmac hash-algo ba-iv (bytes/str->utf8-ba "iv->salt")))
+            ba-salt (or ?ba-salt (impl/hmac hash-algo ba-iv impl/ba-const-iv->salt))
             ba-key
-            (if backup-key-prv
-              (if-let [ba-ekey ?ba-ekey]
-                (try
-                  (core/decrypt-with-1-keypair ba-ekey backup-key-prv
-                    (assoc (or backup-opts (dissoc opts :ba-aad :ba-akm))
-                      :return :ba-content))
-                  (catch Throwable t
-                    (throw
-                      (ex-info "Failed to decrypt `KeyChain` with given backup key: wrong key?"
-                        {} t))))
-                (throw
-                  (ex-info "Failed to decrypt `KeyChain` with given backup key: no backup key was provided during encryption"
-                    {})))
-
+            (or
+              (get-backup-key-for-decryption ?ba-ebkey opts+)
               (let [;; Key stretched from pwd
-                    ba-pkey (pbkdf/pbkdf pbkdf-algo impl/max-sym-key-len
-                              ba-salt password pbkdf-nwf)]
-                (impl/hmac hash-algo ba-pkey ba-akm ba-const-derive-ekc-key)))
+                    ba-pkey (pbkdf/pbkdf pbkdf-algo impl/max-sym-key-len ba-salt password pbkdf-nwf)]
+                (impl/hmac hash-algo ba-pkey ba-akm)))
 
-            hmac-pass?
-            (if-let [ba-hmac ?ba-hmac]
-              (let [ba-to-hash (bytes/ba->sublen hmac-idx ba-ekc)
-                    ba-hmac*   (impl/hmac hash-algo ba-key
-                                 ba-const-derive-ekc-hmac ba-to-hash)]
-                (enc/ba= ba-hmac ba-hmac*))
-              true)]
+            hmac-pass? (impl/ehmac-pass? ehmac* ba-ekc hash-algo ba-key)]
 
-        (when (or hmac-pass? ignore-hmac?)
+        (when (or ignore-hmac? hmac-pass?)
           (let [sck (impl/as-symmetric-cipher-kit sym-cipher-algo)]
             (when-let [ba-cnt
                        (try ; Throw possible, but unlikely if ba-hmac was present and passed
-                         (impl/sck-decrypt sck ba-iv ba-key ba-ecnt ?ba-aad)
+                         (let [ba-fkey (impl/derive-final-key hash-algo ba-key)]
+                           (impl/sck-decrypt sck ba-iv ba-fkey ba-ecnt ?ba-aad))
                          (catch #_javax.crypto.AEADBadTagException Throwable
                            _ nil))]
 
               (bytes/with-in [in] ba-cnt
-                (let [ba-kc-prv (bytes/read-dynamic-ba  in)
-                      ?ba-ucnt  (bytes/read-dynamic-?ba in) ; User content
-                      _         (df/read-resv!          in)
-                      keychain  (keychain-restore ba-kc-prv ba-kc-pub)]
+                (let [?ba-kc-prv (bytes/read-dynamic-?ba in)
+                      ?ba-ucnt   (bytes/read-dynamic-?ba in) ; User content
+                      _          (df/read-resv!          in)
+                      keychain   (keychain-restore ?ba-kc-prv ?ba-kc-pub)]
 
                   (case return
                     :keychain   keychain
@@ -1066,12 +1118,14 @@
 ;;;;
 
 (defn try-keys
-  "Returns {:keys [success error errors]}"
+  "Returns {:keys [success error errors]}."
   [embedded-key-ids? possible-keys with-possible-key-fn]
   (let [nkeys (count possible-keys)]
     (if (== nkeys 1)
       (try
-        {:success (with-possible-key-fn (first possible-keys))}
+        (if-let [success (with-possible-key-fn (first possible-keys))]
+          {:success success}
+          {:error   (Exception. "Unexpected (falsey) `try-keys` result")})
         (catch Throwable t {:error t }))
 
       ;; >1 keys => using `KeyChain`/s with data written with {:embed-key-ids? false}
@@ -1092,15 +1146,16 @@
           {:success success}
           {:errors  @errors_})))))
 
-(defn decrypt-failed! [ex-info] (throw ex-info))
+(comment (try-keys false {:a :k1 :b :k2} (fn [k] nil)))
+
 (defn try-decrypt-with-keys!
-  "Special case of `try-keys` that throws decryption errors on failure"
+  "Special case of `try-keys` that throws decryption errors on failure."
   [context embedded-key-ids? possible-keys decrypt-fn]
   (let [result (try-keys embedded-key-ids? possible-keys decrypt-fn)]
     (enc/cond
       :if-let [success (get result :success)] success
       :if-let [t       (get result :error)]
-      (decrypt-failed!
+      (throw
         (ex-info
           (if embedded-key-ids?
             "Failed to decrypt Tempel data (1 identified key tried)"
@@ -1111,7 +1166,7 @@
       :else
       (let [errors (get result :errors)
             nkeys  (count possible-keys)]
-        (decrypt-failed!
+        (throw
           (ex-info (str "Failed to decrypt Tempel data (" nkeys " unidentified keys tried)")
             {:context           context
              :num-keys-tried    nkeys

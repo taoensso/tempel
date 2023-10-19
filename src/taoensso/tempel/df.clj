@@ -171,42 +171,77 @@
           (str "Reserved Tempel extension point unexpectedly in use. " error-msg-newer-version)
           {:value {:actual b, :expected 0}})))))
 
+;;;; Flags
+;; Efficient (BitSet) flag storage
+
+(let [;; Can store 8 flags in 1 byte:
+      ;;   - 5x Indexes 0->4 reserved for global flags (base schema)
+      ;;   - 3x Indexes 5->7 reserved for local  flags (schema+)
+      base-schema-freeze {:has-hmac 0 :has-backup-key 1}
+      base-schema-thaw   (enc/invert-map base-schema-freeze)]
+
+  (defn write-flags
+    "m-flags: {:keys [has-hmac has-backup-key]} "
+    [^DataOutput out schema+ m-flags]
+    (let [flags    (reduce-kv (fn [acc k v] (if v (conj acc k) acc)) #{} m-flags)
+          schema   (enc/fast-merge base-schema-freeze schema+)
+          ba-flags (bytes/freeze-set schema flags)]
+      (bytes/write-dynamic-ba out ba-flags)))
+
+  (defn skip-flags [^DataInput in] (bytes/skip-dynamic-ba in))
+  (defn read-flags [^DataInput in schema+]
+    (when-let [ba (bytes/read-dynamic-?ba in)]
+      (let [schema (enc/fast-merge base-schema-thaw schema+)]
+        (try
+          (bytes/thaw-set schema ba)
+          (catch Throwable t
+            (throw
+              (ex-info (str "Unexpected Tempel flag encountered. " error-msg-newer-version)
+                {} t))))))))
+
+(comment (vec (bytes/freeze-set {0 0 1 1 2 2 3 3 4 4 5 5 6 6 7 7} #{0 1 2 3 4 5 6 7})))
+
 ;;;; Envelope data formats
 
 (def reference-data-formats
   "{<envelope-id> [[<num-bytes> <purpose>] ...]}.
-    - Public data includes: aad, content, key-algo, key-ids
+    - Public data includes: flags, aad, content, key-algo, key-ids
     - Other  data in order: other algos, params, content"
 
   '{:encrypted-with-password-v1
-    [:public-data [3 head] [1 env] [$ ?ba-aad]
-     :rest [1 hash-algo] [1 sym-cipher-algo] [1 pbkdf-algo] [2 pbkdf-nwf] [$ ba-salt] [$ ba-iv] [$ ba-ecnt] [1 resv]]
+    [:public-data [3 head] [1 env] [$ ?ba-flags] [$ ?ba-aad]
+     :main [1 hash-algo] [1 sym-cipher-algo] [1 pbkdf-algo] [2 pbkdf-nwf] [$ ba-salt] [$ ba-iv] [$ ba-ecnt] [$ ?ba-ebkey]
+     :end  [1 resv] [$ ?ba-ehmac] [1 resv]]
 
     :encrypted-with-symmetric-key-v1
-    [:public-data [3 head] [1 env] [$ ?ba-aad] [$ key-id]
-     :rest [1 hash-algo] [1 sym-cipher-algo] [$ ba-iv] [$ ba-ecnt] [1 resv]]
-
-    :signed-v1
-    [:public-data [3 head] [1 env] [$ ?ba-aad] [1 key-algo] [$ key-id] [$ba-cnt]
-     :rest [1 hash-algo] [1 sig-algo] [$ ba-sig] [1 resv]]
+    [:public-data [3 head] [1 env] [$ ?ba-flags] [$ ?ba-aad] [$ ?key-id]
+     :main [1 hash-algo] [1 sym-cipher-algo] [$ ba-iv] [$ ba-ecnt] [$ ?ba-ebkey]
+     :end  [1 resv] [$ ?ba-ehmac] [1 resv]]
 
     :encrypted-with-1-keypair-<type>-v1 ; <type> ∈ #{hybrid simple}
-    [:public-data [3 head] [1 env] [$ ?ba-aad] [1 key-algo] [$ key-id]
-     :rest [?1 hash-algo] [?1 sym-cipher-algo] [1 asym-cipher-algo] [?$ ba-iv] [$ ba-ecnt] [?$ ba-ekey] [1 resv]]
+    [:public-data [3 head] [1 env] [$ ?ba-flags] [$ ?ba-aad] [1 key-algo] [$ ?key-id]
+     :main [?1 hash-algo] ?[1 sym-cipher-algo] [1 asym-cipher-algo] ?[$ ba-iv] [$ ba-ecnt] ?[$ ba-erkey] ?[$ ?ba-ebkey]
+     :end  [1 resv] ?[$ ?ba-ehmac] ?[1 resv]]
 
     :encrypted-with-2-keypairs-v1
-    [:public-data [3 head] [1 env] [$ ?ba-aad] [1 key-algo] [$ receiver-key-id] [$ sender-key-id]
-     :rest [1 hash-algo] [1 ka-algo] [1 sym-cipher-algo] [$ ba-iv] [$ ba-ecnt] [1 resv]]
+    [:public-data [3 head] [1 env] [$ ?ba-flags] [$ ?ba-aad] [1 key-algo] [$ ?receiver-key-id] [$ ?sender-key-id]
+     :main [1 hash-algo] [1 ka-algo] [1 sym-cipher-algo] [$ ba-iv] [$ ba-ecnt] [$ ?ba-ebkey]
+     :end  [1 resv] [$ ?ba-ehmac] [1 resv]]
+
+    :signed-v1
+    [:public-data [3 head] [1 env] [$ ?ba-flags] [$ ?ba-aad] [1 key-algo] [$ ?key-id] [$ba-cnt]
+     :main [1 hash-algo] [1 sig-algo] [$ ba-sig]
+     :end  [1 resv]]
 
     :encrypted-keychain-v1
-    [:public-data [3 head] [1 env] [$ ?ba-aad] [$ ba-kc-pub] [1 resv]
-     :rest
+    [:public-data [3 head] [1 env] [$ ?ba-flags] [$ ?ba-aad] [$ ba-kc-pub] [1 resv]
+     :main
      [1 hash-algo] [1 sym-cipher-algo] [1 pbkdf-algo] [2 pbkdf-nwf] [$ ba-salt] [1 resv]
-     [$ ba-iv] [$ ba-ecnt] [1 resv] [$ ba-ekey] [1 resv]
-     [?32 ba-hmac]                              [1 resv]]
+     [$ ba-iv] [$ ba-ecnt] [1 resv] [$ ba-ekey] [$ ?ba-ebkey]
+     :end [1 resv] [$ ?ba-hmac] [1 resv]]
 
     :keychain-<part>-v1 ; <part> ∈ #{prv pub}
-    [:public-data [3 head] [1 env] [1 resv] [2 n-entries] [2 resv]
+    [:public-data [3 head] [1 env] [$ ?ba-flags] [1 resv] [2 n-entries] [1 resv]
      :rest
      [[[$ key-id] [1 key-type] ?[[1 key-algo] [2 key-priority] [$ key-cnt]]] ...]
      [1 resv]]})
