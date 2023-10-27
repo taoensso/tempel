@@ -52,7 +52,7 @@
              9 :signed-v1})
 
           (+entries :pbkdf-algo
-            {; 0 nil
+            {0 nil
              1 :pbkdf2-hmac-sha-256-v1
              2 :scrypt-r8p1-v1
              3 :sha-512-v1-deprecated})
@@ -234,7 +234,7 @@
      :end  [1 resv]]
 
     :encrypted-keychain-v1
-    [:public-data [3 head] [1 env] [$ ?ba-flags] [$ ?ba-aad] [$ ba-kc-pub] [1 resv]
+    [:public-data [3 head] [1 env] [$ ?ba-flags] [$ ?ba-aad] [$ ba-kc-pub] [$ ?key-id] [1 resv]
      :main
      [1 hash-algo] [1 sym-cipher-algo] [1 pbkdf-algo] [2 pbkdf-nwf] [$ ba-salt] [1 resv]
      [$ ba-iv] [$ ba-ecnt] [1 resv] [$ ba-ekey] [$ ?ba-ebkey]

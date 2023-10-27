@@ -982,3 +982,10 @@
             ba-ehmac   (hmac hash-algo ba-key ba-const-derive-ehmac ba-to-hash)]
         (enc/ba= ba-ehmac-ref ba-ehmac))
       true)))
+
+;;;; Common error messages
+
+(do
+  (def ^:const error-msg-bad-backup-key "Failed to decrypt Tempel data (with backup key)")
+  (def ^:const error-msg-bad-pwd        "Failed to decrypt Tempel data (with password)")
+  (def ^:const error-msg-bad-ehmac      "Unexpected HMAC: bad decryption key, or corrupt data."))

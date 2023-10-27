@@ -358,23 +358,35 @@
                 (keys/keychain-remove "c"                           {:keep-private? true})
                 (keys/keychain-remove "d"                           {:keep-private? false}))
 
-           ba-enc (keys/keychain-encrypt kc     "pwd")
-           kc-dec (keys/keychain-decrypt ba-enc "pwd")]
+           ba-key   (impl/rand-ba 32)
+           ba-!key  (impl/rand-ba 32)
 
-       ;; More tests (incl. AAD, AKM, etc.) in later section for core API
+           key-sym  (keys/keychain {:only? true :symmetric-keys [:random]})
+           !key-sym (keys/keychain {:only? true :symmetric-keys [:random]})]
 
-       [(is (= (kcc kc)     {:n-sym 2, :n-prv 5, :n-pub 4}))
-        (is (= (kcc kc-dec) {:n-sym 2, :n-prv 5, :n-pub 4}))
-        (is (=  kc  kc-dec))
+       ;; More tests (incl. AAD, AKM, etc.) are in later section for core API
 
-        (is (=            (get @kc-dec "d")   {}) "Keep key-ids for empty entries")
-        (is (= (set (keys (get @kc-dec "c"))) #{:key-prv :key-algo :priority}))
+       (every? boolean
+         (for [[key-opts !key-opts]
+               [[{:password  "pwd"} {:password  "!pwd"}]
+                [{:key-sym  ba-key} {:key-sym  ba-!key}]
+                [{:key-sym key-sym} {:key-sym !key-sym}]]]
 
-        (is (= (keys/keychain-decrypt ba-enc "!pwd") nil) "Bad pwd")
-        (is (= (kcc (:keychain (pd ba-enc))) {:n-pub 4}) "Public keychain in public data")
+           (let [ba-enc (keys/keychain-encrypt kc     key-opts)
+                 kc-dec (keys/keychain-decrypt ba-enc key-opts)]
 
-        (is (every? nil? (mapv #(or (:key-sym %) (:key-prv %)) (vals @(:keychain (pd ba-enc)))))
-          "No private data in public keychain")]))])
+             [(is (= (kcc kc)     {:n-sym 2, :n-prv 5, :n-pub 4}))
+              (is (= (kcc kc-dec) {:n-sym 2, :n-prv 5, :n-pub 4}))
+              (is (=  kc  kc-dec))
+
+              (is (=            (get @kc-dec "d")   {}) "Keep key-ids for empty entries")
+              (is (= (set (keys (get @kc-dec "c"))) #{:key-prv :key-algo :priority}))
+
+              (is (= (keys/keychain-decrypt ba-enc !key-opts) nil) "Bad key")
+              (is (= (kcc (:keychain (pd ba-enc))) {:n-pub 4})     "Public keychain in public data")
+
+              (is (every? nil? (mapv #(or (:key-sym %) (:key-prv %)) (vals @(:keychain (pd ba-enc)))))
+                "No private data in public keychain")])))))])
 
 ;;;; Core API
 
@@ -405,16 +417,17 @@
 (defn- combinatorial-roundtrip-tests!
   "Runs roundtrip tests with a wide variety of input options
   and returns {:passed <num>}, or throws on first failure."
-  [test-name enc-fn dec-fn enc-key dec-key dec-!key]
+  [test-name input enc-fn dec-fn enc-key dec-key dec-!key]
   (let [t0       (System/currentTimeMillis)
         n-passed (enc/counter 0)
         failed_  (atom nil)
-        sizes    [0 16 64 #_1024 #_4096 8192 #_16384]]
+        sizes    [0 16 64 #_1024 #_4096 8192 #_16384]
+        kind     (if (= input :rand-bytes) :ba :kc)]
 
     (println)
     (print (str "Starting combinatorial tests (" test-name "), this may take some time!"))
     (doall
-      (for [cnt-size        sizes
+      (for [input           (case kind :kc [input] :ba sizes)
             aad-size        sizes
             akm-size        sizes
             dec-key*        [:good :bad]
@@ -433,24 +446,25 @@
                   (print "."))
                 (flush))
 
-              ba-cnt     (when             cnt-size  (impl/rand-ba cnt-size))
-              ba-enc-aad (when (pos? ^long aad-size) (impl/rand-ba aad-size))
-              ba-enc-akm (when (pos? ^long akm-size) (impl/rand-ba akm-size))
+              input      (case kind :kc input     :ba (impl/rand-ba input))
+              ba-enc-aad (when (pos? ^long aad-size)  (impl/rand-ba aad-size))
+              ba-enc-akm (when (pos? ^long akm-size)  (impl/rand-ba akm-size))
               ba-dec-akm (case ba-dec-akm* :good ba-enc-akm, :bad (impl/rand-ba 32) nil nil)
               dec-key    (case dec-key*    :good dec-key     :bad dec-!key)
 
               ba-enc-backup-akm (when enc-backup-akm? (impl/rand-ba (rand-int 128)))
-              enc-backup-opts (when enc-backup-akm? {:ba-akm                             ba-enc-backup-akm})
-              dec-backup-opts (when enc-backup-akm? {:ba-akm (case dec-backup-akm* :good ba-enc-backup-akm :bad (impl/rand-ba 32) nil nil)})
+              enc-backup-opts   (when enc-backup-akm? {:ba-akm                             ba-enc-backup-akm})
+              dec-backup-opts   (when enc-backup-akm? {:ba-akm (case dec-backup-akm* :good ba-enc-backup-akm :bad (impl/rand-ba 32) nil nil)})
               enc-opts {:ba-akm ba-enc-akm :backup-key enc-backup-key :backup-opts enc-backup-opts :ba-aad ba-enc-aad :embed-hmac? embed-hmac?}
               dec-opts {:ba-akm ba-dec-akm :backup-key dec-backup-key :backup-opts dec-backup-opts :return :as-map}
 
-              enc-result (try (enc-fn ba-cnt     enc-key enc-opts) (catch Throwable t {:error t}))
+              enc-result (try (enc-fn input      enc-key enc-opts) (catch Throwable t {:error t}))
               dec-result (try (dec-fn enc-result dec-key dec-opts) (catch Throwable t {:error t}))
               error
               (or
-                (when-let [e (:error enc-result)] [:enc-error e])
-                (when-let [e (:error dec-result)] [:dec-error e]))
+                (when-let [e (:error enc-result)]          [:enc-error e])
+                (when-let [e (:error dec-result)]          [:dec-error e])
+                (when (and (= kind :kc) (nil? enc-result)) [:dec-error :nil-result]))
 
               expect-success?
               (if (and enc-backup-key dec-backup-key)
@@ -466,12 +480,20 @@
                   false))
 
               success?
-              (boolean
-                (and
-                  (bytes/?ba= (:ba-content dec-result) ba-cnt)
-                  (bytes/?ba= (:ba-aad     dec-result) ba-enc-aad)))]
+              (and
+                (nil? error)
+                (case kind
+                  :ba
+                  (and
+                    (bytes/?ba= (:ba-content dec-result) input)
+                    (bytes/?ba= (:ba-aad     dec-result) ba-enc-aad))
 
-          (if-let [pass? (is (if expect-success? success? error) (str "Combinatorial test (" test-name ")"))]
+                  :kc
+                  (and
+                    (=          (:keychain dec-result) input)
+                    (bytes/?ba= (:ba-aad   dec-result) ba-enc-aad))))]
+
+          (if-let [pass? (is (= (boolean expect-success?) success?) (str "Combinatorial test (" test-name ")"))]
             (n-passed)
             (let [vec*     #(when-let [v (not-empty (vec (take 5 %)))] (conj v '...))
                   enc-opts (-> enc-opts (update :ba-aad vec*) (update :ba-akm vec*))
@@ -499,10 +521,23 @@
   (let [kc1 (-> (keys/keychain) (keys/keychain-add-symmetric-key :random {:key-id "a"}))
         kc2 (-> (keys/keychain) (keys/keychain-add-symmetric-key :random {:key-id "a"}))]
 
-    (combinatorial-roundtrip-tests! "roundtrip with symmetric key"
-      (fn enc-fn [ba-cnt key-sym opts] (tempel/encrypt-with-symmetric-key ba-cnt key-sym (merge {}               opts)))
-      (fn dec-fn [ba-enc key-sym opts] (tempel/decrypt-with-symmetric-key ba-enc key-sym (merge {:return :_test} opts)))
-      kc1 kc1 kc2)))
+    (combinatorial-roundtrip-tests! "roundtrip with symmetric key" :rand-bytes
+      (fn enc-fn [ba-cnt key-sym opts] (tempel/encrypt-with-symmetric-key ba-cnt key-sym opts))
+      (fn dec-fn [ba-enc key-sym opts] (tempel/decrypt-with-symmetric-key ba-enc key-sym opts))
+      kc1 kc1 kc2))
+
+  (let [kc (keys/keychain {:symmetric-keys      [:random :random]
+                           :asymmetric-keypairs [:rsa-1024 :dh-1024 :ec-secp256r1]})
+
+        ba-key  (impl/rand-ba 32)
+        ba-!key (impl/rand-ba 32)]
+
+    (combinatorial-roundtrip-tests! "keychain roundtrip"     kc
+      (fn enc-fn [kc  key-opts opts] (keys/keychain-encrypt  kc (merge key-opts opts)))
+      (fn dec-fn [ekc key-opts opts] (keys/keychain-decrypt ekc (merge key-opts opts)))
+      {:key-sym  ba-key}
+      {:key-sym  ba-key}
+      {:key-sym  ba-!key})))
 
 (deftest _core-roundtrips
   [(testing "Encryption with password"
@@ -527,7 +562,7 @@
         (is= (dec (enc ba-cnt "pwd" {:backup-key master-kc :ba-akm ba-akm})  nil  {:backup-key master-kc}) {:cnt "cnt"} "+Backup, use backup,  +AKM, -AAD")
 
         (binding [tempel/*config* (merge tempel/*config* {:pbkdf-nwf :ref-10-msecs})]
-          (is (:passed? (combinatorial-roundtrip-tests! "roundtrip with password" enc dec "pwd" "pwd" "!pwd"))))]))
+          (is (:passed? (combinatorial-roundtrip-tests! "roundtrip with password" :rand-bytes enc dec "pwd" "pwd" "!pwd"))))]))
 
    (testing "Encryption with symmetric key"
      (let [enc (fn [ba-cnt key-sym opts] (tempel/encrypt-with-symmetric-key ba-cnt key-sym (merge {}               opts)))
@@ -552,7 +587,7 @@
         (is= (dec (enc ba-cnt kc1 {:backup-key master-kc               }) nil {:backup-key master-kc}) {:cnt "cnt"} "+Backup, use backup,  -AKM, -AAD")
         (is= (dec (enc ba-cnt kc1 {:backup-key master-kc :ba-akm ba-akm}) nil {:backup-key master-kc}) {:cnt "cnt"} "+Backup, use backup,  +AKM, -AAD")
 
-        (is (:passed? (combinatorial-roundtrip-tests! "roundtrip with symmetric key" enc dec kc1 kc1 kc2)))]))
+        (is (:passed? (combinatorial-roundtrip-tests! "roundtrip with symmetric key" :rand-bytes enc dec kc1 kc1 kc2)))]))
 
    (testing "Encryption with 1 keypair"
      (let [enc (fn [ba-cnt key-pub opts] (tempel/encrypt-with-1-keypair ba-cnt key-pub (merge {}               opts)))
@@ -580,7 +615,7 @@
                (is= (dec (enc ba-cnt kc1 {:backup-key master-kc               }) nil {:backup-key master-kc}) {:cnt cnt} "+Backup, use backup,  -AKM, -AAD")
                (is= (dec (enc ba-cnt kc1 {:backup-key master-kc :ba-akm ba-akm}) nil {:backup-key master-kc}) {:cnt cnt} "+Backup, use backup,  +AKM, -AAD")])))
 
-        (is (:passed? (combinatorial-roundtrip-tests! "roundtrip with 1 keypair" enc dec kc1 kc1 kc2)))]))
+        (is (:passed? (combinatorial-roundtrip-tests! "roundtrip with 1 keypair" :rand-bytes enc dec kc1 kc1 kc2)))]))
 
    (testing "Encryption with 2 keypairs"
      (let [enc (fn [ba-cnt [key-pub key-prv] opts] (tempel/encrypt-with-2-keypairs ba-cnt key-pub key-prv (merge {}               opts)))
@@ -606,40 +641,51 @@
         (is= (dec (enc ba-cnt [kc1 kc2] {:backup-key master-kc               }) nil       {:backup-key master-kc}) {:cnt "cnt"} "+Backup, use backup,  -AKM, -AAD")
         (is= (dec (enc ba-cnt [kc1 kc2] {:backup-key master-kc :ba-akm ba-akm}) nil       {:backup-key master-kc}) {:cnt "cnt"} "+Backup, use backup,  +AKM, -AAD")
 
-        (is (:passed? (combinatorial-roundtrip-tests! "roundtrip with 2 keypairs" enc dec [kc1 kc2] [kc1 kc2] [kc1 kc3])))]))
+        (is (:passed? (combinatorial-roundtrip-tests! "roundtrip with 2 keypairs" :rand-bytes enc dec [kc1 kc2] [kc1 kc2] [kc1 kc3])))]))
 
    (testing "Encrypted keychains"
-     (let [enc (fn [kc     pwd opts] (keys/keychain-encrypt kc     pwd (merge {}               opts)))
-           dec (fn [ba-enc pwd opts] (keys/keychain-decrypt ba-enc pwd (merge {:return :_test} opts)))
+     (let [enc (fn [kc  key-opts opts] (keys/keychain-encrypt kc  (merge {}               key-opts opts)))
+           dec (fn [ekc key-opts opts] (keys/keychain-decrypt ekc (merge {:return :_test} key-opts opts)))
            kc  (keys/keychain {:symmetric-keys      [:random :random]
                                :asymmetric-keypairs [:rsa-1024 :dh-1024 :ec-secp256r1]})]
 
-       [(is= (dec (enc kc "pwd" {              })  "pwd" {               }) {:kc kc}             "-AKM, -AAD")
-        (is= (dec (enc kc "pwd" {:ba-akm ba-akm})  "pwd" {:ba-akm ba-akm }) {:kc kc}             "+AKM, -AAD")
-        (is= (dec (enc kc "pwd" {:ba-aad ba-aad})  "pwd" {               }) {:kc kc, :aad "aad"} "-AKM, +AAD")
-        (is= (dec (enc kc "pwd" {:ba-aad ba-aad
-                                 :ba-akm ba-akm})  "pwd" {:ba-akm ba-akm }) {:kc kc, :aad "aad"} "+AKM, +AAD")
+       [(is= (dec (enc kc {:password "pwd"} {              }) {:password "pwd"} {              }) {:kc kc}             "-AKM, -AAD")
+        (is= (dec (enc kc {:password "pwd"} {:ba-akm ba-akm}) {:password "pwd"} {:ba-akm ba-akm}) {:kc kc}             "+AKM, -AAD")
+        (is= (dec (enc kc {:password "pwd"} {:ba-aad ba-aad}) {:password "pwd"} {              }) {:kc kc, :aad "aad"} "-AKM, +AAD")
+        (is= (dec (enc kc {:password "pwd"} {:ba-aad ba-aad
+                                             :ba-akm ba-akm}) {:password "pwd"} {:ba-akm ba-akm}) {:kc kc, :aad "aad"} "+AKM, +AAD")
 
-        (is= (dec (enc kc "pwd" {              }) "!pwd" {               }) nil "Bad pwd")
-        (is= (dec (enc kc "pwd" {:ba-akm ba-akm})  "pwd" {:ba-akm ba-!akm}) nil "Bad AKM")
+        (is= (dec (enc kc {:password "pwd"} {              }) {:password "!pwd"} {               }) nil "Bad pwd")
+        (is= (dec (enc kc {:password "pwd"} {:ba-akm ba-akm}) {:password  "pwd"} {:ba-akm ba-!akm}) nil "Bad AKM")
 
-        (is= (pd  (enc kc "pwd" {              })) {:kind :encrypted-keychain            } "Public data")
-        (is= (pd  (enc kc "pwd" {:ba-aad ba-aad})) {:kind :encrypted-keychain, :aad "aad"} "Public data +AAD")
+        (is= (pd  (enc kc {:password "pwd"} {              })) {:kind :encrypted-keychain            } "Public data")
+        (is= (pd  (enc kc {:password "pwd"} {:ba-aad ba-aad})) {:kind :encrypted-keychain, :aad "aad"} "Public data +AAD")
 
         ;; Embedded (private user) content
-        (is=      (dec (enc kc "pwd" {:ba-content (as-ba "cnt")}) "pwd" {}) {:kc kc, :cnt "cnt"} "Private content")
-        (let [pd1 (pd  (enc kc "pwd" {:ba-content (as-ba "cnt")}))
-              pd2 (pd  (enc kc "pwd" {                         }))]
+        (is=      (dec (enc kc {:password "pwd"} {:ba-content (as-ba "cnt")}) {:password "pwd"} {}) {:kc kc, :cnt "cnt"} "Private content")
+        (let [pd1 (pd  (enc kc {:password "pwd"} {:ba-content (as-ba "cnt")}))
+              pd2 (pd  (enc kc {:password "pwd"} {}))]
           (is (= pd1 pd2) "Private content not in public data"))
 
-        (is= (dec (enc kc "pwd" {:backup-key master-kc               }) "pwd" {                     }) {:kc kc} "+Backup, use primary, -AKM, -AAD")
-        (is= (dec (enc kc "pwd" {:backup-key master-kc :ba-akm ba-akm}) "pwd" {:ba-akm ba-akm       }) {:kc kc} "+Backup, use primary, +AKM, -AAD")
-        (is= (dec (enc kc "pwd" {:backup-key master-kc               })  nil  {:backup-key master-kc}) {:kc kc} "+Backup, use backup,  -AKM, -AAD")
-        (is= (dec (enc kc "pwd" {:backup-key master-kc :ba-akm ba-akm})  nil  {:backup-key master-kc}) {:kc kc} "+Backup, use backup,  +AKM, -AAD")
+        (is= (dec (enc kc {:password "pwd"} {:backup-key master-kc               }) {:password "pwd"} {                     }) {:kc kc} "+Backup, use primary, -AKM, -AAD")
+        (is= (dec (enc kc {:password "pwd"} {:backup-key master-kc :ba-akm ba-akm}) {:password "pwd"} {:ba-akm ba-akm       }) {:kc kc} "+Backup, use primary, +AKM, -AAD")
+        (is= (dec (enc kc {:password "pwd"} {:backup-key master-kc               }) {               } {:backup-key master-kc}) {:kc kc} "+Backup, use backup,  -AKM, -AAD")
+        (is= (dec (enc kc {:password "pwd"} {:backup-key master-kc :ba-akm ba-akm}) {               } {:backup-key master-kc}) {:kc kc} "+Backup, use backup,  +AKM, -AAD")
 
-        (let [opts (fn [ba-akm] {:backup-key master-kc :backup-opts {:ba-akm ba-akm}})]
-          [(is= (dec (enc kc "pwd" (opts ba-akm)) nil (opts ba-akm))  {:kc kc           } "+Backup, use backup, +bAKM (good)")
-           (is= (dec (enc kc "pwd" (opts ba-akm)) nil (opts ba-!akm)) {:err "backup key"} "+Backup, use backup, +bAKM (bad)")])]))
+        (let [ba-key   (impl/rand-ba 32)
+              ba-!key  (impl/rand-ba 32)
+
+              key-sym  (keys/keychain {:only? true :symmetric-keys [:random]})
+              !key-sym (keys/keychain {:only? true :symmetric-keys [:random]})]
+
+          (binding [tempel/*config* (merge tempel/*config* {:pbkdf-nwf :ref-10-msecs})]
+            (every? :passed?
+              (for [[key-opts !key-opts]
+                    [[{:password  "pwd"} {:password  "!pwd"}]
+                     [{:key-sym  ba-key} {:key-sym  ba-!key}]
+                     [{:key-sym key-sym} {:key-sym !key-sym}]]]
+
+                (combinatorial-roundtrip-tests! "keychain roundtrip" kc enc dec key-opts key-opts !key-opts)))))]))
 
    (testing "Signing"
      (let [sig (fn [ba-cnt    key-prv opts] (tempel/sign   ba-cnt    key-prv (merge {}               opts)))
@@ -677,7 +723,7 @@
 (deftest _core-keychains
   [(testing "Encryption with symmetric key, no embedded key ids"
      (let [kc1-prv (keys/keychain {:only? true, :symmetric-keys [:random :random :random :random]})
-           kc1-pub (:keychain (pd (keys/keychain-encrypt kc1-prv "pwd")))
+           kc1-pub (:keychain (pd (keys/keychain-encrypt kc1-prv {:password "pwd"})))
            kc2-prv (keys/keychain-remove kc1-prv "1")
            ck1-sym (get-in @kc1-prv ["1" :key-sym]) ; Manually select lowest-priority key
 
@@ -701,7 +747,7 @@
 
    (testing "Encryption with 1 keypair, no embedded key ids"
      (let [kc1-prv (keys/keychain {:only? true, :asymmetric-keypairs [:rsa-1024 :rsa-1024 :rsa-1024 :rsa-1024]})
-           kc1-pub (:keychain (pd (keys/keychain-encrypt kc1-prv "pwd")))
+           kc1-pub (:keychain (pd (keys/keychain-encrypt kc1-prv {:password "pwd"})))
            kc2-prv (keys/keychain-remove kc1-prv "1" {:keep-private? false})
 
            ck1-pub (get-in @kc1-pub ["1" :key-pub]) ; Manually select lowest-priority key

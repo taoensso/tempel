@@ -41,8 +41,7 @@
 (enc/assert-min-encore-version [3 74 0])
 
 ;;;; TODO
-;; - Mod keychain encryption to take encrypt-fn, etc.?
-;;   - Update tests and docs
+;; - Move ba-iv into final key derivation? (so will also cover backup key, etc.)
 
 ;;;; TODO
 ;; - Consider including something like Signal's "Double Ratchet" work?
@@ -438,12 +437,14 @@
             :ba-content ?ba-content))
 
         :encrypted-keychain-v1
-        (let [?ba-aad   (bytes/read-dynamic-?ba in)
-              ba-kc-pub (bytes/read-dynamic-ba  in)]
+        (let [?ba-aad   (bytes/read-dynamic-?ba  in)
+              ba-kc-pub (bytes/read-dynamic-ba   in)
+              ?key-id   (bytes/read-dynamic-?str in)]
           (enc/assoc-when
             {:kind :encrypted-keychain, :version 1,
              :keychain (keys/keychain-restore nil ba-kc-pub)}
             :ba-aad          ?ba-aad
+            :key-id          ?key-id
             :has-hmac?       has-hmac?
             :has-backup-key? has-backup-key?))
 
@@ -460,11 +461,6 @@
       :cnt (bytes/?utf8-ba->?str ba-content))))
 
 ;;;; Cipher API
-
-(do
-  (def ^:private ^:const error-msg-bad-backup-key "Failed to decrypt Tempel data (with backup key)")
-  (def ^:private ^:const error-msg-bad-pwd        "Failed to decrypt Tempel data (with password)")
-  (def ^:private ^:const error-msg-bad-ehmac      "Unexpected HMAC: bad decryption key, or corrupt data."))
 
 (defn- return-val [context return-kind ?ba-cnt ?ba-aad]
   (case return-kind
@@ -610,7 +606,7 @@
             (fn [ba-key]
               (if (or ignore-hmac? (impl/ehmac-pass? ehmac* ba-encrypted hash-algo ba-key))
                 ba-key
-                (throw (ex-info error-msg-bad-ehmac {}))))
+                (throw (ex-info impl/error-msg-bad-ehmac {}))))
 
             sck     (impl/as-symmetric-cipher-kit sym-cipher-algo)
             ba-bkey (keys/get-backup-key-for-decryption ?ba-ebkey opts+)
@@ -629,8 +625,8 @@
 
               (catch Throwable t
                 (if ba-bkey
-                  (throw (ex-info error-msg-bad-backup-key {} t))
-                  (throw (ex-info error-msg-bad-pwd        {} t)))))]
+                  (throw (ex-info impl/error-msg-bad-backup-key {} t))
+                  (throw (ex-info impl/error-msg-bad-pwd        {} t)))))]
 
         (return-val env-kid return ba-cnt ?ba-aad)))))
 
@@ -753,7 +749,7 @@
             (fn [ba-key]
               (if (or ignore-hmac? (impl/ehmac-pass? ehmac* ba-encrypted hash-algo ba-key))
                 ba-key
-                (throw (ex-info error-msg-bad-ehmac {}))))
+                (throw (ex-info impl/error-msg-bad-ehmac {}))))
 
             sck (impl/as-symmetric-cipher-kit sym-cipher-algo)
             ba-cnt
@@ -763,7 +759,7 @@
                   (impl/sck-decrypt sck ba-iv ba-fkey ba-ecnt ?ba-aad))
 
                 (catch Throwable t
-                  (throw (ex-info error-msg-bad-backup-key {} t))))
+                  (throw (ex-info impl/error-msg-bad-backup-key {} t))))
 
               (let [ckeys-sym (keys/get-ckeys-sym-cipher key-sym ?key-id)]
                 (keys/try-decrypt-with-keys! `decrypt-with-symmetric-key
@@ -1006,7 +1002,7 @@
                 (fn [ba-key]
                   (if (or ignore-hmac? (impl/ehmac-pass? ehmac* ba-encrypted hash-algo ba-key))
                     ba-key
-                    (throw (ex-info error-msg-bad-ehmac {}))))
+                    (throw (ex-info impl/error-msg-bad-ehmac {}))))
 
                 sck (impl/as-symmetric-cipher-kit sym-cipher-algo)
                 ba-cnt
@@ -1016,7 +1012,7 @@
                       (impl/sck-decrypt sck ba-iv ba-fkey ba-ecnt ?ba-aad))
 
                     (catch Throwable t
-                      (throw (ex-info error-msg-bad-backup-key {} t))))
+                      (throw (ex-info impl/error-msg-bad-backup-key {} t))))
 
                   (let [ckeys-prv (keys/get-ckeys-asym-cipher receiver-key-prv key-algo ?key-id)]
                     (keys/try-decrypt-with-keys! `decrypt-with-1-keypair
@@ -1196,7 +1192,7 @@
             (fn [ba-key]
               (if (or ignore-hmac? (impl/ehmac-pass? ehmac* ba-encrypted hash-algo ba-key))
                 ba-key
-                (throw (ex-info error-msg-bad-ehmac {}))))
+                (throw (ex-info impl/error-msg-bad-ehmac {}))))
 
             sck (impl/as-symmetric-cipher-kit sym-cipher-algo)
             ba-cnt
@@ -1206,7 +1202,7 @@
                   (impl/sck-decrypt sck ba-iv ba-fkey ba-ecnt ?ba-aad))
 
                 (catch Throwable t
-                  (throw (ex-info error-msg-bad-backup-key {} t))))
+                  (throw (ex-info impl/error-msg-bad-backup-key {} t))))
 
               (let [ckey-pairs ; [[<recvr-ckey-prv> <sendr-ckey-pub>] ...]
                     (keys/get-ckeys-ka key-algo
