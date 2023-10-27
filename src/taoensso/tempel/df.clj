@@ -210,22 +210,22 @@
 
   '{:encrypted-with-password-v1
     [:public-data [3 head] [1 env] [$ ?ba-flags] [$ ?ba-aad]
-     :main [1 hash-algo] [1 sym-cipher-algo] [1 pbkdf-algo] [2 pbkdf-nwf] [$ ba-salt] [$ ba-iv] [$ ba-ecnt] [$ ?ba-ebkey]
+     :main [1 hash-algo] [1 sym-cipher-algo] [1 pbkdf-algo] [2 pbkdf-nwf] [$ ba-salt] [$ ba-iv] [$ ba-ecnt] [$ ?ba-ekey1b]
      :end  [1 resv] [$ ?ba-ehmac] [1 resv]]
 
     :encrypted-with-symmetric-key-v1
     [:public-data [3 head] [1 env] [$ ?ba-flags] [$ ?ba-aad] [$ ?key-id]
-     :main [1 hash-algo] [1 sym-cipher-algo] [$ ba-iv] [$ ba-ecnt] [$ ?ba-ebkey]
+     :main [1 hash-algo] [1 sym-cipher-algo] [$ ba-iv] [$ ba-ecnt] [$ ?ba-ekey1b]
      :end  [1 resv] [$ ?ba-ehmac] [1 resv]]
 
     :encrypted-with-1-keypair-<type>-v1 ; <type> ∈ #{hybrid simple}
     [:public-data [3 head] [1 env] [$ ?ba-flags] [$ ?ba-aad] [1 key-algo] [$ ?key-id]
-     :main [?1 hash-algo] ?[1 sym-cipher-algo] [1 asym-cipher-algo] ?[$ ba-iv] [$ ba-ecnt] ?[$ ba-erkey] ?[$ ?ba-ebkey]
+     :main [?1 hash-algo] ?[1 sym-cipher-algo] [1 asym-cipher-algo] ?[$ ba-iv] [$ ba-ecnt] ?[$ ba-ekey0] ?[$ ?ba-ekey1b]
      :end  [1 resv] ?[$ ?ba-ehmac] ?[1 resv]]
 
     :encrypted-with-2-keypairs-v1
     [:public-data [3 head] [1 env] [$ ?ba-flags] [$ ?ba-aad] [1 key-algo] [$ ?receiver-key-id] [$ ?sender-key-id]
-     :main [1 hash-algo] [1 ka-algo] [1 sym-cipher-algo] [$ ba-iv] [$ ba-ecnt] [$ ?ba-ebkey]
+     :main [1 hash-algo] [1 ka-algo] [1 sym-cipher-algo] [$ ba-iv] [$ ba-ecnt] [$ ?ba-ekey1b]
      :end  [1 resv] [$ ?ba-ehmac] [1 resv]]
 
     :signed-v1
@@ -237,7 +237,7 @@
     [:public-data [3 head] [1 env] [$ ?ba-flags] [$ ?ba-aad] [$ ba-kc-pub] [$ ?key-id] [1 resv]
      :main
      [1 hash-algo] [1 sym-cipher-algo] [1 pbkdf-algo] [2 pbkdf-nwf] [$ ba-salt] [1 resv]
-     [$ ba-iv] [$ ba-ecnt] [1 resv] [$ ba-ekey] [$ ?ba-ebkey]
+     [$ ba-iv] [$ ba-ecnt] [1 resv] [$ ba-ekey] [$ ?ba-ekey1b]
      :end [1 resv] [$ ?ba-hmac] [1 resv]]
 
     :keychain-<part>-v1 ; <part> ∈ #{prv pub}

@@ -22,12 +22,12 @@
 ;;;; Backup keys
 
 (defn get-backup-key-for-encryption
-  "Returns nil, or encrypted symmetric backup key (`?ba-ebkey`). This is
-  a 1kp-encrypted copy of the (post-AKM!) key from which the final key
-  will be derived:
-    1. (hmac primary-key + AKM, etc.) -> final-sym-key-used-for-encryption
-    2. (1kp-decrypt ?ba-ebkey)        -> final-sym-key-used-for-encryption"
-  [ba-key encrypt-opts]
+  "Returns nil, or encrypted symmetric backup key (`?ba-ekey1b`).
+  This is a 1kp-encrypted copy of `ba-key1`, the (post-AKM!) key from which
+  final `ba-key2` will be derived:
+    1. (hmac ba-key0 + AKM, etc.) -> `ba-key1`
+    2. (1kp-decrypt ?ba-ekey1b)   -> `ba-key1`"
+  [ba-key1 encrypt-opts]
   (let [{:keys [backup-key backup-opts]} encrypt-opts]
     (when backup-key
       (let [backup-opts
@@ -38,15 +38,15 @@
                     (assoc  :embed-hmac? false :scheme :auto))]
               (core/get-opts+ base-opts backup-opts))]
         (try
-          (core/encrypt-with-1-keypair (have enc/bytes? ba-key) backup-key backup-opts)
+          (core/encrypt-with-1-keypair (have enc/bytes? ba-key1) backup-key backup-opts)
           (catch Throwable t
             (throw (ex-info "Failed to enable backup key support during encryption" {} t))))))))
 
 (defn get-backup-key-for-decryption
-  "Returns `?ba-bkey` or decrypted (symmetric) backup key.
+  "Returns `?ba-key1` or decrypted (symmetric) backup key.
   Complement of `get-backup-key-for-encryption`."
-  [?ba-ebkey decrypt-opts]
-  (when-let [^bytes ba-ebkey ?ba-ebkey]
+  [?ba-ekey1b decrypt-opts]
+  (when-let [^bytes ba-ekey1b ?ba-ekey1b]
     (let [{:keys [backup-key backup-opts]} decrypt-opts]
       (when backup-key
         (let [backup-opts
@@ -58,7 +58,7 @@
                   (core/get-opts+ base-opts backup-opts)
                   :return :ba-content))]
           (try
-            (core/decrypt-with-1-keypair ba-ebkey backup-key backup-opts)
+            (core/decrypt-with-1-keypair ba-ekey1b backup-key backup-opts)
             (catch Throwable t
               (throw (ex-info "Failed to decrypt embedded backup key" {} t)))))))))
 
@@ -968,28 +968,28 @@
         _ (when (and password key-sym) (throw (ex-info error-msg-need-pwd-xor-key-sym {})))
 
         sck       (impl/as-symmetric-cipher-kit sym-cipher-algo)
-        ba-iv     (impl/rand-ba impl/max-sym-key-len)
-        ba-salt   (when password (impl/hmac hash-algo ba-iv impl/ba-const-iv->salt))
+        ba-iv     (impl/rand-ba impl/min-iv-len)
+        ba-salt   (when password (impl/derive-ba-salt hash-algo ba-iv))
         pbkdf-nwf (if   password (pbkdf/pbkdf-nwf-parse pbkdf-algo pbkdf-nwf) 0)
 
-        {:keys [ba-key ?ba-key-id]}
+        {:keys [ba-key1 ?ba-key-id]}
         (enc/cond
           password
-          (let [ba-pkey (pbkdf/pbkdf pbkdf-algo impl/max-sym-key-len ba-salt password pbkdf-nwf)]
-            {:ba-key (impl/hmac hash-algo ba-pkey ba-akm ba-iv)})
+          (let [ba-key0 (pbkdf/pbkdf pbkdf-algo impl/max-sym-key-len ba-salt password pbkdf-nwf)]
+            {:ba-key1 (impl/derive-ba-key1 hash-algo ba-key0 ba-iv ba-akm)})
 
           key-sym
           (let [ckey-sym (get-ckeys-sym-cipher key-sym)
                 {:keys [key-sym key-id]} @ckey-sym
-                ba-ukey (have enc/bytes? key-sym)]
+                ba-key0 (have enc/bytes? key-sym)]
 
-            {:ba-key     (impl/hmac hash-algo ba-ukey ba-akm ba-iv)
+            {:ba-key1    (impl/derive-ba-key1 hash-algo ba-key0 ba-iv ba-akm)
              :?ba-key-id (when embed-key-ids? (bytes/?str->?utf8-ba key-id))})
 
           :else
           (throw (ex-info error-msg-need-pwd-or-key-sym {})))
 
-        ?ba-ebkey (get-backup-key-for-encryption ba-key opts+)
+        ?ba-ekey1b (get-backup-key-for-encryption ba-key1 opts+)
         {:keys [ba-kc-prv ba-kc-pub]} (keychain-freeze keychain)
 
         ba-cnt ; Private content
@@ -999,14 +999,14 @@
           (df/write-resv          out))
 
         ba-ecnt
-        (let [ba-fkey (impl/derive-final-key hash-algo ba-key)]
-          (impl/sck-encrypt sck ba-iv ba-fkey ba-cnt ba-aad))
+        (let [ba-key2 (impl/derive-ba-key2 hash-algo ba-key1 ba-iv)]
+          (impl/sck-encrypt sck ba-iv ba-key2 ba-cnt ba-aad))
 
         ehmac-size (if embed-hmac? (impl/hmac-len hash-algo) 0)
 
         ba-ekc ; ba-encrypted-keychain
         (bytes/with-out [out baos]
-          [72 ba-aad ba-kc-pub ?ba-key-id ?ba-ebkey ba-iv ba-ecnt ehmac-size]
+          [72 ba-aad ba-kc-pub ?ba-key-id ?ba-ekey1b ba-iv ba-ecnt ehmac-size]
 
           (df/write-head          out)
           (df/write-kid           out :envelope :encrypted-keychain-v1)
@@ -1025,9 +1025,9 @@
 
           (bytes/write-dynamic-ba out ba-iv)
           (bytes/write-dynamic-ba out ba-ecnt)
-          (bytes/write-dynamic-ba out ?ba-ebkey)
+          (bytes/write-dynamic-ba out ?ba-ekey1b)
           (df/write-resv          out)
-          (impl/write-ehmac       out baos embed-hmac? hash-algo ba-key)
+          (impl/write-ehmac       out baos embed-hmac? hash-algo ba-key1 ba-iv)
           (df/write-resv          out))]
 
     ba-ekc))
@@ -1088,34 +1088,36 @@
             _               (df/read-resv!           in)
             ba-iv           (bytes/read-dynamic-ba   in)
             ba-ecnt         (bytes/read-dynamic-ba   in)
-            ?ba-ebkey       (bytes/read-dynamic-?ba  in)
+            ?ba-ekey1b      (bytes/read-dynamic-?ba  in)
             _               (df/read-resv!           in)
             ehmac*          (impl/read-ehmac*        in bais ba-ekc)
             _               (df/read-resv            in)
 
             hmac-pass!
-            (fn [ba-key]
-              (if (or ignore-hmac? (impl/ehmac-pass? ehmac* ba-ekc hash-algo ba-key))
-                ba-key
+            (fn [ba-key1]
+              (if (or ignore-hmac? (impl/ehmac-pass? ehmac* ba-ekc hash-algo ba-key1 ba-iv))
+                ba-key1
                 (throw (ex-info impl/error-msg-bad-ehmac {}))))
 
             sck (impl/as-symmetric-cipher-kit sym-cipher-algo)
             ?ba-cnt
             (enc/cond
-              :if-let [ba-key  (get-backup-key-for-decryption ?ba-ebkey opts+)]
+              :if-let [ba-key1 (get-backup-key-for-decryption ?ba-ekey1b opts+)]
               (try
-                (let  [ba-fkey (impl/derive-final-key hash-algo (hmac-pass! ba-key))]
-                  (impl/sck-decrypt sck ba-iv ba-fkey ba-ecnt ?ba-aad))
+                (let  [ba-key1 (hmac-pass!  ba-key1)
+                       ba-key2 (impl/derive-ba-key2 hash-algo ba-key1 ba-iv)]
+                  (impl/sck-decrypt sck ba-iv ba-key2 ba-ecnt ?ba-aad))
                 (catch Throwable t
                   (throw (ex-info impl/error-msg-bad-backup-key {} t))))
 
               password
               (try
-                (let [ba-salt (or ?ba-salt (impl/hmac hash-algo ba-iv impl/ba-const-iv->salt))
-                      ba-pkey (pbkdf/pbkdf ?pbkdf-algo impl/max-sym-key-len ba-salt password pbkdf-nwf)
-                      ba-key  (impl/hmac hash-algo ba-pkey ba-akm ba-iv)
-                      ba-fkey (impl/derive-final-key hash-algo (hmac-pass! ba-key))]
-                  (impl/sck-decrypt sck ba-iv ba-fkey ba-ecnt ?ba-aad))
+                (let [ba-salt (or ?ba-salt (impl/derive-ba-salt hash-algo ba-iv))
+                      ba-key0 (pbkdf/pbkdf ?pbkdf-algo impl/max-sym-key-len ba-salt password pbkdf-nwf)
+                      ba-key1 (impl/derive-ba-key1 hash-algo ba-key0 ba-iv ba-akm)
+                      ba-key1 (hmac-pass!  ba-key1)
+                      ba-key2 (impl/derive-ba-key2 hash-algo ba-key1 ba-iv)]
+                  (impl/sck-decrypt sck ba-iv ba-key2 ba-ecnt ?ba-aad))
                 (catch Throwable t nil))
 
               key-sym
@@ -1125,11 +1127,12 @@
                     (some? ?key-id) ckeys-sym
                     (fn [ckey-sym]
                       (let [{:keys [key-sym]} @ckey-sym
-                            ba-ukey (have enc/bytes? key-sym)
-                            ba-key  (impl/hmac hash-algo ba-ukey ba-akm ba-iv)
+                            ba-key0 (have enc/bytes? key-sym)
+                            ba-key1 (impl/derive-ba-key1 hash-algo ba-key0 ba-iv ba-akm)
+                            ba-key1 (hmac-pass!  ba-key1)
                             ba-cnt
-                            (let [ba-fkey (impl/derive-final-key hash-algo (hmac-pass! ba-key))]
-                              (impl/sck-decrypt sck ba-iv ba-fkey ba-ecnt ?ba-aad))]
+                            (let [ba-key2 (impl/derive-ba-key2 hash-algo ba-key1 ba-iv)]
+                              (impl/sck-decrypt sck ba-iv ba-key2 ba-ecnt ?ba-aad))]
                         ba-cnt))))
                 (catch Throwable t nil))
 

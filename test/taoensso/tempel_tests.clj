@@ -45,7 +45,12 @@
    (is (= (vec (impl/hmac :sha-1 (as-ba "secret") (as-ba "cnt"))) [-40 11 -111 61 59 63 -44 72 -58 -47 49 16 103 -41 44 -95 -36 -84 -111 -86]))
    (is (=
          (vec (impl/hmac :sha-256 (as-ba "secret")     (as-ba "c1")     (as-ba "c2")))
-         (vec (impl/hmac :sha-256 (as-ba "secret") nil (as-ba "c1") nil (as-ba "c2")))))])
+         (vec (impl/hmac :sha-256 (as-ba "secret") nil (as-ba "c1") nil (as-ba "c2")))))
+
+   (is (enc/throws? (impl/hmac :sha-256 (byte-array 0)   (as-ba "c1"))))
+   (is (enc/throws? (impl/hmac :sha-256 (as-ba "secret") (byte-array 0))))
+   (is (enc/throws? (impl/hmac :sha-256 (as-ba "secret") (byte-array 0) (byte-array 0))))
+   (is (enc/bytes?  (impl/hmac :sha-256 (as-ba "secret") (byte-array 0) (as-ba "c1"))))])
 
 (deftest _pbkdf-pbkdf2
   (is (= (vec (#'pbkdf/pbkdf-pbkdf2 :hmac-sha-256 16 (as-ba "salt") (.toCharArray "pwd") 8000))
@@ -210,14 +215,15 @@
            (is (true? (impl/signature-verify :sha-256-rsa key-algo ba-pub1 ba-cnt ba-sig))))))]))
 
 (deftest _embedded-hmacs
-  (let [ba-key1 (impl/rand-ba 32)
+  (let [ba-iv   (impl/rand-ba 32)
+        ba-key1 (impl/rand-ba 32)
         ba-key2 (impl/rand-ba 32)
 
         get-ba-data
         (fn [ba-cnt ba-key]
           (bytes/with-out [out baos] 1024
             (bytes/write-dynamic-ba out ba-cnt)
-            (impl/write-ehmac out baos true :sha-256 ba-key)))
+            (impl/write-ehmac out baos true :sha-256 ba-key ba-iv)))
 
         ba-data1 (get-ba-data (as-ba "cnt1") ba-key1)
         ba-data2 (get-ba-data (as-ba "cnt2") ba-key2)]
@@ -225,9 +231,9 @@
     (bytes/with-in [in bais] ba-data1
       (bytes/skip-dynamic-ba in)
       (let [ehmac* (impl/read-ehmac* in bais ba-data1)]
-        [(is (true?  (impl/ehmac-pass? ehmac* ba-data1 :sha-256 ba-key1)))
-         (is (false? (impl/ehmac-pass? ehmac* ba-data1 :sha-256 ba-key2)) "Bad key")
-         (is (false? (impl/ehmac-pass? ehmac* ba-data2 :sha-256 ba-key2)) "Bad content")]))))
+        [(is (true?  (impl/ehmac-pass? ehmac* ba-data1 :sha-256 ba-key1 ba-iv)))
+         (is (false? (impl/ehmac-pass? ehmac* ba-data1 :sha-256 ba-key2 ba-iv)) "Bad key")
+         (is (false? (impl/ehmac-pass? ehmac* ba-data2 :sha-256 ba-key2 ba-iv)) "Bad content")]))))
 
 ;;;; Key management
 

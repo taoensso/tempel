@@ -202,31 +202,39 @@
          :context  `as-hmac}))))
 
 (defn hmac
-  "Returns HMAC of given byte[] secret and byte[] ?content.
+  "Returns HMAC of given non-empty byte[] secret and non-empty byte[] content.
   Takes `hash-algo` ∈ #{:md5 :sha-1 :sha-256 :sha-512}.
 
   Has several uses, including derive additional keys from secret:
     (hmac :sha-256 ba-secret ba-label1), etc."
-  ;; (^bytes [hash-algo ba-secret           ] (have ba-secret)) ; Dangerous?
-  (   ^bytes [hash-algo ba-secret ba-content]
-   (have? ba-secret)
-   (if (nil? ba-content)
-     ba-secret
-     (let [hmac     (as-hmac hash-algo)
-           key-spec (javax.crypto.spec.SecretKeySpec. ba-secret (.getAlgorithm hmac))]
 
-       (.init    hmac key-spec)
-       (.doFinal hmac ba-content))))
-
-  (^bytes [hash-algo ba-secret ba-content & more]
-   (have? ba-secret)
+  (^bytes [hash-algo ba-secret ba-content]
+   (have? bytes/nempty-ba? ba-secret ba-content)
    (let [hmac     (as-hmac hash-algo)
          key-spec (javax.crypto.spec.SecretKeySpec. ba-secret (.getAlgorithm hmac))]
+     (.init    hmac key-spec)
+     (.doFinal hmac ba-content)))
 
-     (do                         (.init    hmac key-spec))
-     (when-let [bac ba-content]  (.update  hmac ^bytes bac))
-     (doseq [bac more] (when bac (.update  hmac ^bytes bac)))
-     (do                         (.doFinal hmac)))))
+  (^bytes [hash-algo ba-secret ba-content & more]
+   (have? bytes/nempty-ba? ba-secret)
+   (let [hmac     (as-hmac hash-algo)
+         key-spec (javax.crypto.spec.SecretKeySpec. ba-secret (.getAlgorithm hmac))
+         content? (volatile! false)]
+
+     (.init hmac key-spec)
+
+     (when-let [bac (bytes/nempty-ba ba-content)]
+       (.update hmac ^bytes bac)
+       (vreset! content? true))
+
+     (doseq [bac more]
+       (when-let [bac (bytes/nempty-ba bac)]
+         (.update hmac ^bytes bac)
+         (vreset! content? true)))
+
+     (if @content?
+       (.doFinal hmac)
+       (throw (ex-info "HMAC needs >0 content length" {}))))))
 
 (let [ba-dummy (byte-array [0 1 2 3 4 5 6 7])
       cached   (enc/fmemoize #(alength (hmac % ba-dummy ba-dummy)))]
@@ -239,6 +247,7 @@
 ;;;; Symmetric ciphers (AES, etc.)
 
 (def ^:const max-sym-key-len "256 bits" 32)
+(def ^:const min-iv-len      "128 bits" 16)
 
 (let [cipher-aes-gcm_ (enc/thread-local (javax.crypto.Cipher/getInstance "AES/GCM/NoPadding"))
       cipher-aes-cbc_ (enc/thread-local (javax.crypto.Cipher/getInstance "AES/CBC/PKCS5Padding"))]
@@ -942,27 +951,29 @@
     (.update     sig ^bytes ba-content)
     (.verify     sig ^bytes ba-signature)))
 
-;;;; Consts for derived keys, etc.
-;; Chosen randomly with (vec (rand-ba 64))
-;; These need not be so large, but it doesn't hurt
+;;;; Derived keys, etc.
 
 (do
-  (def ^:private ba-const-derive-final-key (byte-array [-20 79 35 72 -46 -91 -11 -32 -26 -67 -102 102 -77 103 -74 94 26 -20 1 11 66 -26 74 87 -68 -119 -68 -122 -92 51 -87 80 -12 -78 109 -58 -9 59 -41 -31 -81 -1 36 -18 5 -54 25 50 -75 4 45 -24 -109 98 -73 -61 -18 59 96 -91 77 -75 -32 -41]))
-  (def ^:private ba-const-derive-ehmac     (byte-array [-126 3 -69 42 -54 125 -116 -30 20 -64 -96 -16 24 80 22 112 -57 25 -68 25 81 113 9 -105 -25 40 37 95 75 -11 41 30 -120 98 -74 -106 -36 96 54 126 52 -26 3 97 -86 -101 -41 -36 107 9 93 119 59 -32 -79 -100 -81 41 36 69 125 -14 -26 26]))
-  (def ba-const-iv->salt                   (byte-array [74 60 68 101 58 -66 110 -53 44 -85 96 27 122 37 105 -3 -96 125 62 -106 121 -116 58 38 87 29 120 -99 84 7 -93 -42 -118 61 -67 19 -110 -26 -33 -123 -24 -79 89 -58 -62 45 118 14 6 42 -119 -79 -49 10 88 80 10 -105 15 -26 67 3 20 0])))
+  ;; Random 512 bit consts generated with (vec (rand-ba 64))
+  (def ^:private const-ba-derive-iv->salt    (byte-array [74 60 68 101 58 -66 110 -53 44 -85 96 27 122 37 105 -3 -96 125 62 -106 121 -116 58 38 87 29 120 -99 84 7 -93 -42 -118 61 -67 19 -110 -26 -33 -123 -24 -79 89 -58 -62 45 118 14 6 42 -119 -79 -49 10 88 80 10 -105 15 -26 67 3 20 0]))
+  (def ^:private const-ba-derive-key0->key1  (byte-array [31 69 -48 -116 116 122 -87 -112 -49 16 43 -76 58 117 116 -113 124 53 -76 113 104 28 103 36 8 -11 -3 -34 -78 63 18 -5 -120 17 -47 -101 81 -90 -100 -24 -83 -53 46 78 -36 75 118 122 -111 27 -6 -83 -15 107 -52 20 -76 -77 3 124 1 -70 -47 -46]) )
+  (def ^:private const-ba-derive-key1->key2  (byte-array [-20 79 35 72 -46 -91 -11 -32 -26 -67 -102 102 -77 103 -74 94 26 -20 1 11 66 -26 74 87 -68 -119 -68 -122 -92 51 -87 80 -12 -78 109 -58 -9 59 -41 -31 -81 -1 36 -18 5 -54 25 50 -75 4 45 -24 -109 98 -73 -61 -18 59 96 -91 77 -75 -32 -41]))
+  (def ^:private const-ba-derive-key1->ehmac (byte-array [-126 3 -69 42 -54 125 -116 -30 20 -64 -96 -16 24 80 22 112 -57 25 -68 25 81 113 9 -105 -25 40 37 95 75 -11 41 30 -120 98 -74 -106 -36 96 54 126 52 -26 3 97 -86 -101 -41 -36 107 9 93 119 59 -32 -79 -100 -81 41 36 69 125 -14 -26 26])))
 
-(defn derive-final-key
-  "Returns final symmetric byte[] key derived from given `ba-key` and const."
-  ^bytes [hash-algo ba-key] (hmac hash-algo ba-key ba-const-derive-final-key))
+(do
+  (defn derive-ba-salt  "ba-iv -> ba-salt"                 ^bytes [hash-algo ba-iv               ] (hmac hash-algo ba-iv                const-ba-derive-iv->salt))
+  (defn derive-ba-key1  "User/password key (key0) -> key1" ^bytes [hash-algo ba-key0 ba-iv ba-akm] (hmac hash-algo ba-key0 ba-iv ba-akm const-ba-derive-key0->key1))
+  (defn derive-ba-ehmac "key1 -> embedded HMAC"            ^bytes [hash-algo ba-key1 ba-iv ba-cnt] (hmac hash-algo ba-key1 ba-iv ba-cnt const-ba-derive-key1->ehmac))
+  (defn derive-ba-key2  "key1 -> final key (key2)"         ^bytes [hash-algo ba-key1 ba-iv       ] (hmac hash-algo ba-key1 ba-iv        const-ba-derive-key1->key2)))
 
 (defn write-ehmac
   "Generates HMAC of output stream's content up to this point, and writes
   it to stream."
-  [out ^java.io.ByteArrayOutputStream baos embed-hmac? hash-algo ba-key]
+  [out ^java.io.ByteArrayOutputStream baos embed-hmac? hash-algo ba-key1 ba-iv]
   (if-not embed-hmac?
     (bytes/write-dynamic-ba out nil)
     (let [ba-to-hash (.toByteArray baos) ; Hash all content so far
-          ba-ehmac   (hmac hash-algo ba-key ba-const-derive-ehmac ba-to-hash)]
+          ba-ehmac   (derive-ba-ehmac hash-algo ba-key1 ba-iv ba-to-hash)]
       (bytes/write-dynamic-ba out ba-ehmac))))
 
 (defn read-ehmac*
@@ -975,11 +986,11 @@
 (defn ehmac-pass?
   "Generates HMAC of output stream's content up to embedded HMAC, and compares
   to the embedded HMAC. Returns true iff the two match."
-  [ehmac* ba-in hash-algo ba-key]
+  [ehmac* ba-in hash-algo ba-key1 ba-iv]
   (let [[idx-ehmac ?ba-ehmac] ehmac*]
     (if-let [ba-ehmac-ref ?ba-ehmac]
       (let [ba-to-hash (bytes/ba->sublen idx-ehmac ba-in)
-            ba-ehmac   (hmac hash-algo ba-key ba-const-derive-ehmac ba-to-hash)]
+            ba-ehmac   (derive-ba-ehmac hash-algo ba-key1 ba-iv ba-to-hash)]
         (enc/ba= ba-ehmac-ref ba-ehmac))
       true)))
 
