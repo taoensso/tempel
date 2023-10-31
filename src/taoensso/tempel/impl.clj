@@ -17,6 +17,9 @@
   (remove-ns 'taoensso.tempel.impl)
   (:api (enc/interns-overview)))
 
+;; TODO Consider :symmetric-<nbits> key-algo, etc.
+;; Benefits not currently worth the user-side complexity
+
 ;;;; IDs
 ;;
 ;; ✓ pbkdf-kit        - #{:scrypt-r8p1-v1 :pbkdf2-hmac-sha-256-v1 :sha-512-v1-deprecated}
@@ -246,8 +249,8 @@
 
 ;;;; Symmetric ciphers (AES, etc.)
 
-(def ^:const max-sym-key-len "256 bits" 32)
-(def ^:const min-iv-len      "128 bits" 16)
+(def ^:const default-sym-key-len "256 bits" 32)
+(def ^:const min-iv-len          "128 bits" 16)
 
 (let [cipher-aes-gcm_ (enc/thread-local (javax.crypto.Cipher/getInstance "AES/GCM/NoPadding"))
       cipher-aes-cbc_ (enc/thread-local (javax.crypto.Cipher/getInstance "AES/CBC/PKCS5Padding"))]
@@ -434,6 +437,8 @@
    (when-let [m-info (key-algo-info key-algo)]
      (when (enc/revery? m-info needs)
        key-algo))))
+
+(comment (key-algo? :dh-1024 [:asymmetric? :ka-algo]))
 
 (defn key-algo!
   "Returns given `key-algo` matching needs, or throws."

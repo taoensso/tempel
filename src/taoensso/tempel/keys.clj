@@ -69,7 +69,7 @@
   (equals   [this other] (and (instance? ChainKey other) (impl/cnt= key-cnt (.-key-cnt ^ChainKey other))))
   (hashCode [this]       (impl/cnt-hash key-cnt))
   (toString [this]
-    (let [m (select-keys @this [:key-algo :symmetric? :private? :public? :secret?])]
+    (let [m (select-keys @this [:key-algo :symmetric? :private? :public? :secret? :length])]
       (str "ChainKey[" m " " (enc/ident-hex-str this) "]")))
 
   clojure.lang.IObj
@@ -81,7 +81,7 @@
   (deref [_]
     (conj
       (case key-type
-        :sym {:key-type :sym, :key-algo key-algo, :symmetric?  true, :secret? true,                  :key-sym key-cnt}
+        :sym {:key-type :sym, :key-algo key-algo, :symmetric?  true, :secret? true,                  :key-sym key-cnt, :length (alength ^bytes key-cnt)}
         :prv {:key-type :prv, :key-algo key-algo, :asymmetric? true, :secret? true,  :private? true, :key-prv key-cnt}
         :pub {:key-type :pub, :key-algo key-algo, :asymmetric? true, :secret? false, :public?  true, :key-pub key-cnt}
         (enc/unexpected-arg! key-type {:expected #{:sym :pub :prv}}))
@@ -147,14 +147,23 @@
 
         :sym
         (enc/cond
-          (= :random  x-key) (ChainKey. :sym :symmetric nil ?key-id (impl/rand-ba impl/max-sym-key-len))
+          (contains? #{:random :random-128-bit :random-256-bit :random-512-bit} x-key)
+          (let [ba-len
+                (case x-key
+                  ;; Specific sizes currently undocumented
+                  :random         impl/default-sym-key-len
+                  :random-128-bit (bytes/n-bits->n-bytes 128)
+                  :random-256-bit (bytes/n-bits->n-bytes 256)
+                  :random-512-bit (bytes/n-bits->n-bytes 512))]
+            (ChainKey. :sym :symmetric nil ?key-id (impl/rand-ba ba-len)))
+
           (enc/bytes? x-key)
-          (if (>= (alength ^bytes x-key) impl/max-sym-key-len)
+          (if (>= (alength ^bytes x-key) impl/default-sym-key-len)
             (ChainKey. :sym :symmetric nil ?key-id x-key)
             (fail!
               (ex-info
-                (format "Symmetric keys must be at least %s bytes long" impl/max-sym-key-len)
-                {:length {:expected impl/max-sym-key-len, :actual (alength ^bytes x-key)}})))
+                (format "Symmetric keys must be at least %s bytes long" impl/default-sym-key-len)
+                {:length {:expected impl/default-sym-key-len, :actual (alength ^bytes x-key)}})))
 
           :else (fail! (ex-info "Unexpected `ChainKey` :key-sym type" {:expected 'bytes, :actual (type x-key)})))
         (enc/unexpected-arg! key-type
@@ -983,7 +992,7 @@
         {:keys [ba-key1 ?ba-key-id]}
         (enc/cond
           password
-          (let [ba-key0 (pbkdf/pbkdf pbkdf-algo impl/max-sym-key-len ba-salt password pbkdf-nwf)]
+          (let [ba-key0 (pbkdf/pbkdf pbkdf-algo impl/default-sym-key-len ba-salt password pbkdf-nwf)]
             {:ba-key1 (impl/derive-ba-key1 hash-algo ba-key0 ba-iv ba-akm)})
 
           key-sym
@@ -1121,7 +1130,7 @@
               password
               (try
                 (let [ba-salt (or ?ba-salt (impl/derive-ba-salt hash-algo ba-iv))
-                      ba-key0 (pbkdf/pbkdf ?pbkdf-algo impl/max-sym-key-len ba-salt password pbkdf-nwf)
+                      ba-key0 (pbkdf/pbkdf ?pbkdf-algo impl/default-sym-key-len ba-salt password pbkdf-nwf)
                       ba-key1 (impl/derive-ba-key1 hash-algo ba-key0 ba-iv ba-akm)
                       ba-key1 (hmac-pass!  ba-key1)
                       ba-key2 (impl/derive-ba-key2 hash-algo ba-key1 ba-iv)]
