@@ -237,7 +237,7 @@
 
 ;;;; Key management
 
-(def kcc keys/keychain-counts)
+(def kci keys/keychain-info)
 (def pd  @#'tempel/public-data-test)
 
 (defn ckid  [x]  (get (enc/force-ref x) :key-id))
@@ -248,10 +248,10 @@
 
 (deftest _keychains
   [(is (keys/keychain? (keys/keychain)))
-   (is (= (kcc (keys/keychain {:empty? true}))                                             {}))
-   (is (= (kcc (keys/keychain {:symmetric-keys nil, :asymmetric-keypairs nil}))            {}))
-   (is (= (kcc (keys/keychain {:only? true, :symmetric-keys [:random]}))                   {:n-sym 1}))
-   (is (= (kcc (keys/keychain {:only? true, :symmetric-keys [(impl/rand-ba 32) :random]})) {:n-sym 2}))
+   (is (= (kci (keys/keychain {:empty? true}))                                             {:secret? false}))
+   (is (= (kci (keys/keychain {:symmetric-keys nil, :asymmetric-keypairs nil}))            {:secret? false}))
+   (is (= (kci (keys/keychain {:only? true, :symmetric-keys [:random]}))                   {:secret? true, :n-sym 1}))
+   (is (= (kci (keys/keychain {:only? true, :symmetric-keys [(impl/rand-ba 32) :random]})) {:secret? true, :n-sym 2}))
    (is (->>    (keys/keychain {:only? true, :symmetric-keys [(impl/rand-ba 5)  :random]})
          (throws? :ex-info {:length {:expected 32}})) "Symmetric key too short")
 
@@ -292,7 +292,7 @@
                               :asymmetric-keypairs [#_3 :rsa-1024 #_4 :rsa-2048 #_5 :ec-secp256r1 #_6 :dh-2048 #_7 :dh-2048]})]
 
        [(is (= (@#'keys/mkc-index @#'keys/reference-mkc) @#'keys/reference-midx))
-        (is (= (kcc kc) {:n-sym 2, :n-prv 5, :n-pub 5}))
+        (is (= (kci kc) {:n-sym 2, :n-prv 5, :n-pub 5, :secret? true}))
         (is (= (ckids (keys/keychain-ckeys kc [:symmetric   :key-sym])) ["2" "1"]))
         (is (= (ckids (keys/keychain-ckeys kc [:asym-cipher :key-pub])) ["4" "3"]))
         (is (= (ckids (keys/keychain-ckeys kc [:ka          :key-prv])) ["7" "6" "5"]))
@@ -350,8 +350,8 @@
                 :asymmetric-keypairs [(get @kc1 "2") (dissoc (get @kc1 "3") :key-prv)]})]
 
      [(is (=  kc1 kc2) "KeyChain & ChainKey equality, can add/copy KeyChain entry maps")
-      (is (= (kcc kc1) {:n-sym 1, :n-prv 2, :n-pub 2}))
-      (is (= (kcc kc3) {:n-sym 1, :n-prv 1, :n-pub 2}))])
+      (is (= (kci kc1) {:n-sym 1, :n-prv 2, :n-pub 2, :secret? true}))
+      (is (= (kci kc3) {:n-sym 1, :n-prv 1, :n-pub 2, :secret? true}))])
 
    (testing "Serialization and encryption"
      (let [kc (->
@@ -381,15 +381,15 @@
            (let [ba-enc (keys/keychain-encrypt kc     key-opts)
                  kc-dec (keys/keychain-decrypt ba-enc key-opts)]
 
-             [(is (= (kcc kc)     {:n-sym 2, :n-prv 5, :n-pub 4}))
-              (is (= (kcc kc-dec) {:n-sym 2, :n-prv 5, :n-pub 4}))
+             [(is (= (kci kc)     {:n-sym 2, :n-prv 5, :n-pub 4, :secret? true}))
+              (is (= (kci kc-dec) {:n-sym 2, :n-prv 5, :n-pub 4, :secret? true}))
               (is (=  kc  kc-dec))
 
               (is (=            (get @kc-dec "d")   {}) "Keep key-ids for empty entries")
               (is (= (set (keys (get @kc-dec "c"))) #{:key-prv :key-algo :priority}))
 
-              (is (= (keys/keychain-decrypt ba-enc !key-opts) nil) "Bad key")
-              (is (= (kcc (:keychain (pd ba-enc))) {:n-pub 4})     "Public keychain in public data")
+              (is (= (keys/keychain-decrypt ba-enc !key-opts) nil)             "Bad key")
+              (is (= (kci (:keychain (pd ba-enc))) {:n-pub 4, :secret? false}) "Public keychain in public data")
 
               (is (every? nil? (mapv #(or (:key-sym %) (:key-prv %)) (vals @(:keychain (pd ba-enc)))))
                 "No private data in public keychain")])))))])
@@ -736,8 +736,8 @@
            ba-enc-named   (tempel/encrypt-with-symmetric-key (as-ba "cnt") ck1-sym {:embed-key-ids? true})
            ba-enc-unnamed (tempel/encrypt-with-symmetric-key (as-ba "cnt") ck1-sym {:embed-key-ids? false})]
 
-       [(is  (= (kcc kc1-prv) {:n-sym 4}))
-        (is  (= (kcc kc1-pub) {}))
+       [(is  (= (kci kc1-prv) {:secret? true, :n-sym 4}))
+        (is  (= (kci kc1-pub) {:secret? false}))
         (is  (= (get (pd ba-enc-named)   :key-id) "1"))
         (is  (= (get (pd ba-enc-unnamed) :key-id) nil))
 
@@ -762,8 +762,8 @@
            ba-enc-named   (tempel/encrypt-with-1-keypair (as-ba "cnt") ck1-pub {:embed-key-ids? true})
            ba-enc-unnamed (tempel/encrypt-with-1-keypair (as-ba "cnt") ck1-pub {:embed-key-ids? false})]
 
-       [(is  (= (kcc kc1-prv) {:n-prv 4, :n-pub 4}))
-        (is  (= (kcc kc1-pub) {          :n-pub 4}))
+       [(is  (= (kci kc1-prv) {:secret? true, :n-prv 4, :n-pub 4}))
+        (is  (= (kci kc1-pub) {:secret? false,          :n-pub 4}))
         (is  (= (get (pd ba-enc-named)   :key-id) "1"))
         (is  (= (get (pd ba-enc-unnamed) :key-id) nil))
 

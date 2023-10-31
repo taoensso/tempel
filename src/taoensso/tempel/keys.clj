@@ -69,7 +69,7 @@
   (equals   [this other] (and (instance? ChainKey other) (impl/cnt= key-cnt (.-key-cnt ^ChainKey other))))
   (hashCode [this]       (impl/cnt-hash key-cnt))
   (toString [this]
-    (let [m (select-keys @this [:key-algo :symmetric? :private? :public?])]
+    (let [m (select-keys @this [:key-algo :symmetric? :private? :public? :secret?])]
       (str "ChainKey[" m " " (enc/ident-hex-str this) "]")))
 
   clojure.lang.IObj
@@ -81,9 +81,9 @@
   (deref [_]
     (conj
       (case key-type
-        :sym {:key-type :sym, :key-algo key-algo, :symmetric?  true,                 :key-sym key-cnt}
-        :prv {:key-type :prv, :key-algo key-algo, :asymmetric? true, :private? true, :key-prv key-cnt}
-        :pub {:key-type :pub, :key-algo key-algo, :asymmetric? true, :public?  true, :key-pub key-cnt}
+        :sym {:key-type :sym, :key-algo key-algo, :symmetric?  true, :secret? true,                  :key-sym key-cnt}
+        :prv {:key-type :prv, :key-algo key-algo, :asymmetric? true, :secret? true,  :private? true, :key-prv key-cnt}
+        :pub {:key-type :pub, :key-algo key-algo, :asymmetric? true, :secret? false, :public?  true, :key-pub key-cnt}
         (enc/unexpected-arg! key-type {:expected #{:sym :pub :prv}}))
 
       (enc/assoc-some {:key-cnt key-cnt} :key-id ?key-id))))
@@ -210,33 +210,33 @@
   (mkc-index reference-mkc))
 
 (defprotocol IKeyChain
-  (keychain-counts  [kc]             "Returns {:keys [n-sym n-prv n-pub]}")
+  (keychain-info    [kc]             "Returns {:keys [n-sym n-prv n-pub secret?]}")
   (keychain-freeze  [kc]             "Returns {:keys [ba-kc-prv ba-kc-pub ba-kc_]}")
   (keychain-ckeys   [kc index-path]  "Returns sorted ?[<ChainKey> ... <ChainKey>]")
   (keychain-update  [kc validate? f] "Returns (possibly new) `KeyChain`"))
 
 (declare
   ^:private -keychain
-  ^:private mkc-key-counts
+  ^:private mkc-info
   ^:private mkc-index
   ^:private mkc-freeze
   ^:private mkc-thaw)
 
-(deftype KeyChain [m-keychain m-key-counts_ m-index_ m-frozen_ ?meta]
+(deftype KeyChain [m-keychain m-info_ m-index_ m-frozen_ ?meta]
   clojure.lang.IDeref  (deref  [_]       m-keychain)
   clojure.lang.IHashEq (hasheq [_] (hash m-keychain))
 
   Object
-  (toString [this] (str "KeyChain[" @m-key-counts_ " " (enc/ident-hex-str this) "]"))
+  (toString [this] (str "KeyChain[" @m-info_ " " (enc/ident-hex-str this) "]"))
   (hashCode [this] (hash m-keychain))
   (equals   [this other] (and (instance? KeyChain other) (= m-keychain (.-m-keychain ^KeyChain other))))
 
   clojure.lang.IObj
   (meta     [_  ] ?meta)
-  (withMeta [_ m] (KeyChain. m-keychain m-key-counts_ m-index_ m-frozen_ m))
+  (withMeta [_ m] (KeyChain. m-keychain m-info_ m-index_ m-frozen_ m))
 
   IKeyChain
-  (keychain-counts  [_] @m-key-counts_)
+  (keychain-info    [_] @m-info_)
   (keychain-freeze  [_] @m-frozen_)
   (keychain-ckeys   [_ index-path] (not-empty (get-in @m-index_ index-path)))
   (keychain-update  [this validate? f]
@@ -250,10 +250,10 @@
 (enc/deftype-print-methods               KeyChain)
 (defn  ^:public keychain? [x] (instance? KeyChain x))
 (defn-         -keychain  [?meta m-keychain]
-  (KeyChain.               m-keychain
-    (delay (mkc-key-counts m-keychain))
-    (delay (mkc-index      m-keychain))
-    (delay (mkc-freeze     m-keychain))
+  (KeyChain.            m-keychain
+    (delay (mkc-info    m-keychain))
+    (delay (mkc-index   m-keychain))
+    (delay (mkc-freeze  m-keychain))
     ?meta))
 
 (defn keychain-restore
@@ -495,19 +495,27 @@
 
 ;;;; State utils
 
-(defn- mkc-key-counts
-  "Returns {:keys [n-sym n-prv n-pub]}."
+(defn- mkc-info
+  "Returns {:keys [n-sym n-prv n-pub secret?]}."
   [m-keychain]
-  (reduce-kv
-    (fn [acc _key-id m-in]
-      (let [acc (if (get m-in :key-sym) (update acc :n-sym #(inc (long (or % 0)))) acc)
-            acc (if (get m-in :key-prv) (update acc :n-prv #(inc (long (or % 0)))) acc)
-            acc (if (get m-in :key-pub) (update acc :n-pub #(inc (long (or % 0)))) acc)]
-        acc))
-    {}
-    m-keychain))
+  (let [m
+        (reduce-kv
+          (fn [acc _key-id m-in]
+            (let [acc (if (get m-in :key-sym) (update acc :n-sym #(inc (long (or % 0)))) acc)
+                  acc (if (get m-in :key-prv) (update acc :n-prv #(inc (long (or % 0)))) acc)
+                  acc (if (get m-in :key-pub) (update acc :n-pub #(inc (long (or % 0)))) acc)]
+              acc))
+          {}
+          m-keychain)
 
-(comment (mkc-key-counts {"a" {:key-sym 'ckey} "b" {:key-prv 'ckey :key-pub 'ckey}}))
+        secret?
+        (or
+          (> (long (get m :n-sym 0)) 0)
+          (> (long (get m :n-prv 0)) 0))]
+
+    (assoc m :secret? secret?)))
+
+(comment (mkc-info {"a" {:key-sym 'ckey} "b" {:key-prv 'ckey :key-pub 'ckey}}))
 
 (defn- mkc-index
   "`reference-mkc` -> `reference-midx`, etc."
