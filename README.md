@@ -23,12 +23,28 @@ See [here][GitHub releases] for earlier releases.
 - **Easy-to-use, high-level API** focused on [common tasks](../../wiki/2-Examples) like logins, encryption, signing, etc.
 - **Reasonable defaults** including choice of algorithms and work factors
 - **Future-proof data formats** with auto-updated algorithms and work factors over time
-- Support for [⧉ symmetric](https://en.wikipedia.org/wiki/Symmetric-key_algorithm) and [⧉ asymmetric](https://en.wikipedia.org/wiki/Public-key_cryptography) (public-key) encryption
+- Support for [⧉ symmetric](https://en.wikipedia.org/wiki/Symmetric-key_algorithm), [⧉ asymmetric](https://en.wikipedia.org/wiki/Public-key_cryptography) (public-key), and [⧉ end-to-end](https://en.wikipedia.org/wiki/End-to-end_encryption) (E2EE) encryption
 - Automatic [⧉ scrypt](https://en.wikipedia.org/wiki/Scrypt) and [⧉ pbkdf2](https://en.wikipedia.org/wiki/PBKDF2) support for easy **password-based key stretching**
 - Simple **key management API** for password resets, key rotations, etc.
-- Beginner-oriented docstrings and [documentation](#documentation)
+- Beginner-oriented [documentation](#documentation) and docstrings
+- **Comprehensive test suite** with >60k unit tests
 
 Note that Tempel is [not intended](../../wiki/3-Faq#can-i-decrypt-tempel-data-with-other-tools) for interop with other cryptographic tools/APIs.
+
+## Roadmap
+
+Tempel has a fixed scope, and is **fully complete**. I'm happy with its design and implementation, and believe it meets all its objectives in its current form. I'm not anticipating significant changes.
+
+Still, given the sensitivity of the problem domain, I plan to approach Tempel's official stable release as a phased rollout to allow time for user feedback before locking things down:
+
+| Phase | Date    | Release       | Appropriate for
+| :-:   | :--     | :--           | :--
+|  ➤    | 2023-11 | `v1.0-alpha`  | Dev/testing with disposable data
+|       | 2024-01 | `v1.0-beta`   | Dev/testing with disposable data
+|       | 2024-03 | `v1.0-RC`     | Staging, with ephemeral or low-value data
+|       | 2024-05 | `v1.0` final  | Production, with real data
+
+`v1.0` final will be considered "**done**"- the library is expected to need+see only minimal maintance from that point.
 
 ## Disclaimer
 
@@ -38,18 +54,14 @@ Bugs and/or misuse could lead to [security vulnerabilities](../../wiki/3-FAQ#how
 
 Please be **very careful** evaluating Tempel and/or other cryptographic libraries/frameworks before use, especially new libraries/frameworks like Tempel!
 
+## Security
+
+See [here](../../security) for **security advisories** and/or to **report security vulnerabilities**.
+
 ## Documentation
 
-- [Full documentation][GitHub wiki] (**getting started** and more)
-- Auto-generated API reference: [Codox][Codox docs], [clj-doc][clj-doc docs]
-
-## Security advisories
-
-No advisories as of last README update. If any security vulnerabilities are discovered, they will be listed here along with an appropriate CVE.
-
-## Security reports
-
-To report a possible security vulnerability, **please email me** at `my first name at taoensso.com`. For particularly sensitive content, you may encrypt your message with my [public PGP/GPG key](https://www.taoensso.com/pgp). Thank you! - Peter Taoussanis
+- [Wiki][GitHub wiki] (getting started, usage, etc.)
+- API reference: [Codox][Codox docs], [clj-doc][clj-doc docs]
 
 ## Funding
 
@@ -57,7 +69,7 @@ You can [help support][sponsor] continued work on this project, thank you!! 🙏
 
 ## License
 
-Copyright &copy; 2023 [Peter Taoussanis][].  
+Copyright &copy; 2023-2024 [Peter Taoussanis][].  
 Licensed under [EPL 1.0](LICENSE.txt) (same as Clojure).
 
 <!-- Common -->

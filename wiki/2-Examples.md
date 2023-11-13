@@ -313,6 +313,8 @@ Using [`encrypt-with-1-keypair`](https://taoensso.github.io/tempel/taoensso.temp
 
 Example use case: allow 2 users to participate in a private conversation viewable only by them. No need for both users to be online simultaneously.
 
+This is an example of [⧉ end-to-end](https://en.wikipedia.org/wiki/End-to-end_encryption) (E2EE) encryption.
+
 Using [`encrypt-with-2-keypairs`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-encrypt-with-2-keypairs) and [`decrypt-with-2-keypairs`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-encrypt-with-2-keypairs):
 
 ```clojure

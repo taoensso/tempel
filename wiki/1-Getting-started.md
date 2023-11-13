@@ -8,14 +8,20 @@ Please be **very careful** evaluating Tempel and/or other cryptographic librarie
 
 # Setup
 
-Add the [relevant dependency](../#latest-releases) to your project:
+Add the [relevant Tempel dependency](../#latest-releases) to your project:
 
 ```clojure
 Leiningen: [com.taoensso/tempel               "x-y-z"] ; or
 deps.edn:   com.taoensso/tempel {:mvn/version "x-y-z"}
 ```
 
-Since Tempel operates primarily on **byte arrays**, you may also want to use something like [Nippy](https://github.com/taoensso/nippy) to help convert your Clojure data types to/from these byte arrays.
+Since Tempel operates primarily on **byte arrays**, you may also want to use something like [Nippy](https://github.com/taoensso/nippy) to help convert your Clojure data types to/from these byte arrays:
+
+```clojure
+;;; Optional
+Leiningen: [com.taoensso/nippy               "x-y-z"] ; or
+deps.edn:   com.taoensso/nippy {:mvn/version "x-y-z"}
+```
 
 Setup your namespace imports:
 
@@ -23,9 +29,24 @@ Setup your namespace imports:
 (ns my-app
   (:require
     [taoensso.tempel :as tempel]
-    [taoensso.nippy  :as nippy] ; Useful, but optional
+    [taoensso.nippy  :as nippy] ; Optional, but useful
     ))
 ```
+
+You may also want to add a dependency for [`com.lambdaworks/scrypt`](https://github.com/wg/scrypt):
+
+```clojure
+;;; Optional
+Leiningen: [com.lambdaworks/scrypt               "1.4.0"] ; or
+deps.edn:   com.lambdaworks/scrypt {:mvn/version "1.4.0"}
+```
+
+This is a Java implementation of [⧉ scrypt](https://en.wikipedia.org/wiki/Scrypt), a particularly secure [⧉ key derivation function](https://en.wikipedia.org/wiki/Key_derivation_function). By default, Tempel will use the following when generating keys from passwords:
+
+- [⧉ scrypt](https://en.wikipedia.org/wiki/Scrypt) when it is present, or
+- [⧉ pbkdf2](https://en.wikipedia.org/wiki/PBKDF2) otherwise
+
+This isn't too important to understand in detail. My recommendation is just to include the above scrypt dependency unless you have a specific reason not to.
 
 # Usage
 

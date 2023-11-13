@@ -10,8 +10,8 @@
   Abbreviations:
     External:
       pbkdf - Password Based Key Derivation Function
-      aad   - Additional Associated Aata (see also `aad-help`)
-      akm   - Additional Keying Material (see also `akm-help`)
+      aad   - Additional Associated Aata (see `aad-help`)
+      akm   - Additional Keying Material (see `akm-help`)
       kek   - Key encryption key (key used to encrypt another key)
       cnt   - Unencrypted content
       ecnt  - Encrypted   content
@@ -205,14 +205,14 @@
       and resources spent during normal operation.
 
       The `:ref-<num>-msecs` keywords take approximately the described amount of
-      time on a 2020 M1 Macbook Pro. See also `pbkdf-nwf-estimate` docstring.
+      time on a 2020 M1 Macbook Pro. See `pbkdf-nwf-estimate`.
 
       Default: `:ref-100-msecs`, a reasonable value for many logins.
 
     `:sym-cipher-algo` ∈ #{*:aes-gcm-128-v1 :aes-gcm-256-v1}
       The symmetric cipher algorithm to use. A cipher that supports \"AEAD\"
       (Authenticated Encryption with Associated Data) must generally be provided
-      in order to use `:ba-aad` options (see `aad-help` docstring).
+      in order to use `:ba-aad` options (see `aad-help`).
 
       Default: `:aes-gcm-128-v1`, a good general-purpose symmetric cipher with
       AEAD support.
@@ -223,7 +223,7 @@
 
     `:keypair-creator` ∈ #{<function> <delay>}
       The function to use when generating asymmetric keypairs.
-      See the `keypair-create` and `keypair-creator` docstrings for details.
+      See `keypair-create`, `keypair-creator` for details.
 
       Default: `default-keypair-creator_`, which uses up to 10% of threads
       to buffer up to 16 keypairs per type.
@@ -232,13 +232,13 @@
 
     `:symmetric-keys`
       Symmetric keys to add to new `KeyChain`s.
-      See the `keychain` docstring for details.
+      See `keychain` for details.
 
       Default: a single random symmetric key.
 
     `:asymmetric-keypairs`
       Asymmetric keypairs to add to new `KeyChain`s.
-      See the `keychain` docstring for details.
+      See `keychain` for details.
 
       Default:
         - A single new `:rsa-3072` keypair, and
@@ -336,7 +336,7 @@
   (unencrypted) data embedded in the byte[].
 
   Possible keys:
-    `:ba-aad`          - See `aad-help` docstring.
+    `:ba-aad`          - See `aad-help`
     `:keychain`        - Public-key part of encrypted `KeyChain`
     `:key-id`          - See `:embed-key-ids?` option of `encrypt-X` API
     `:receiver-key-id` - ''
@@ -481,7 +481,7 @@
   "Uses a symmetric cipher to encrypt the given byte[] content and return
   a byte[] that includes:
     - The encrypted content
-    - Optional unencrypted AAD (see `aad-help` docstring)
+    - Optional unencrypted AAD (see `aad-help`)
     - Envelope data necessary for decryption (specifies algorithms, etc.)
 
   Takes a password (string, byte[], or char[]).
@@ -491,10 +491,10 @@
   Decrypt output with: `decrypt-with-password`.
 
   Options:
-    `:ba-aad` - See `aad-help` docstring
-    `:ba-akm` - See `akm-help` dosctring
+    `:ba-aad` - See `aad-help`
+    `:ba-akm` - See `akm-help`
 
-    And see `*config*` docstring for details:
+    And see `*config*` for details:
       `hash-algo`, `sym-cipher-algo`, `pbkdf-algo`, `pbkdf-nwf`,
       `embed-key-ids?`, `embed-hmac?`, `backup-key`, `backup-opts`."
 
@@ -636,17 +636,17 @@
   "Uses a symmetric cipher to encrypt the given byte[] content and return
   a byte[] that includes:
     - The encrypted content
-    - Optional unencrypted AAD (see `aad-help` docstring)
+    - Optional unencrypted AAD (see `aad-help`)
     - Envelope data necessary for decryption (specifies algorithms, etc.)
 
   Takes a `KeyChain` (see `keychain`) or byte[] key.
   Decrypt output with: `decrypt-with-symmetric-key`.
 
   Options:
-    `:ba-aad` - See `aad-help` docstring
-    `:ba-akm` - See `akm-help` docstring
+    `:ba-aad` - See `aad-help`
+    `:ba-akm` - See `akm-help`
 
-    And see `*config*` docstring for details:
+    And see `*config*` for details:
       `hash-algo`, `sym-cipher-algo`, `embed-key-ids?`,
       `backup-key`, `backup-opts`."
 
@@ -783,7 +783,7 @@
   "Uses a symmetric or hybrid (symmetric + asymmetric) scheme to encrypt the
   given content byte[] and return a byte[] that includes:
     - The encrypted content
-    - Optional unencrypted AAD (see `aad-help` docstring)
+    - Optional unencrypted AAD (see `aad-help`)
     - Envelope data necessary for decryption (specifies algorithms, etc.)
 
   Takes a `KeyChain` (see `keychain`) or `KeyPair` (see `keypair-create`).
@@ -796,10 +796,10 @@
   Decrypt output byte[] with: `decrypt-with-1-keypair`.
 
   Options:
-    `:ba-aad` - See `aad-help` docstring
-    `:ba-akm` - See `akm-help` docstring
+    `:ba-aad` - See `aad-help`
+    `:ba-akm` - See `akm-help`
 
-    And see `*config*` docstring for details:
+    And see `*config*` for details:
       `hash-algo`, `sym-cipher-algo`, `asym-cipher-algo`,
       `embed-key-ids`, `backup-key`, `backup-opts`."
 
@@ -1043,7 +1043,7 @@
   "Uses a hybrid (symmetric + asymmetric) scheme to encrypt the given content
   byte[] and return a byte[] that includes:
     - The encrypted content
-    - Optional unencrypted AAD (see `aad-help` docstring)
+    - Optional unencrypted AAD (see `aad-help`)
     - Envelope data necessary for decryption (specifies algorithms, etc.)
 
   Takes `KeyChain`s (see `keychain`) and/or `KeyPair`s (see `keypair-create`).
@@ -1061,10 +1061,10 @@
   Decrypt output byte[] with: `decrypt-with-2-keypairs`.
 
   Options:
-    `:ba-aad` - See `aad-help` docstring
-    `:ba-akm` - See `akm-help` docstring
+    `:ba-aad` - See `aad-help`
+    `:ba-akm` - See `akm-help`
 
-    And see `*config*` docstring for details:
+    And see `*config*` for details:
       `hash-algo`, `ka-algo`, `sym-cipher-algo`,
       `embed-key-ids?`, `backup-key`, `backup-opts`."
 
@@ -1238,7 +1238,7 @@
   "Cryptographically signs the given content byte[] and returns a byte[]
   that includes:
     - Optional unencrypted content (see `embed-content?` option below)
-    - Optional unencrypted AAD     (see `aad-help` docstring)
+    - Optional unencrypted AAD     (see `aad-help`)
     - Envelope data necessary for verification (specifies algorithms, etc.)
 
   Produces:
@@ -1255,11 +1255,11 @@
   Verify with: `signed`.
 
   Options:
-    `:ba-aad`         - See `aad-help` docstring
-    `:ba-akm`         - See `akm-help` dosctring
+    `:ba-aad`         - See `aad-help`
+    `:ba-akm`         - See `akm-help`
     `:embed-content?` - See usage info above
 
-    And see `*config*` docstring for details:
+    And see `*config*` for details:
       `hash-algo`, `sig-algo`, `embed-key-ids?`."
 
   #_(df/reference-data-formats :signed-v1)
