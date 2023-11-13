@@ -11,13 +11,12 @@ It incorporates **best practices and reasonable defaults** to help simplify many
 
 ## Latest release/s
 
-- Snapshot [here](https://clojars.org/com.taoensso/tempel) for early feedback
-- First v1.0.0 alpha coming [~Nov 2023](https://www.taoensso.com/clojure/roadmap)
+- `2023-11-13` `1.0.0-alpha1`: [release notes](../../releases/tag/v1.0.0-alpha1)
 
 [![Main tests][Main tests SVG]][Main tests URL]
 [![Graal tests][Graal tests SVG]][Graal tests URL]
 
-<!-- TODO See [here][GitHub releases] for earlier releases. -->
+See [here][GitHub releases] for earlier releases.
 
 ## Why Tempel?
 
