@@ -23,10 +23,11 @@ See [here][GitHub releases] for earlier releases.
 - **Easy-to-use, high-level API** focused on [common tasks](../../wiki/2-Examples) like logins, encryption, signing, etc.
 - **Reasonable defaults** including choice of algorithms and work factors
 - **Future-proof data formats** with auto-updated algorithms and work factors over time
-- Support for [⧉ symmetric](https://en.wikipedia.org/wiki/Symmetric-key_algorithm) and [⧉ asymmetric](https://en.wikipedia.org/wiki/Public-key_cryptography) (public-key) encryption
+- Support for [⧉ symmetric](https://en.wikipedia.org/wiki/Symmetric-key_algorithm), [⧉ asymmetric](https://en.wikipedia.org/wiki/Public-key_cryptography) (public-key), and [⧉ end-to-end](https://en.wikipedia.org/wiki/End-to-end_encryption) (E2EE) encryption
 - Automatic [⧉ scrypt](https://en.wikipedia.org/wiki/Scrypt) and [⧉ pbkdf2](https://en.wikipedia.org/wiki/PBKDF2) support for easy **password-based key stretching**
 - Simple **key management API** for password resets, key rotations, etc.
-- Beginner-oriented docstrings and [documentation](#documentation)
+- Beginner-oriented [documentation](#documentation) and docstrings
+- **Comprehensive test suite** with >60k unit tests
 
 Note that Tempel is [not intended](../../wiki/3-Faq#can-i-decrypt-tempel-data-with-other-tools) for interop with other cryptographic tools/APIs.
 
@@ -38,18 +39,14 @@ Bugs and/or misuse could lead to [security vulnerabilities](../../wiki/3-FAQ#how
 
 Please be **very careful** evaluating Tempel and/or other cryptographic libraries/frameworks before use, especially new libraries/frameworks like Tempel!
 
+## Security
+
+See [here](../../security) for **security advisories** and/or to **report security vulnerabilities**.
+
 ## Documentation
 
 - [Full documentation][GitHub wiki] (**getting started** and more)
 - Auto-generated API reference: [Codox][Codox docs], [clj-doc][clj-doc docs]
-
-## Security advisories
-
-No advisories as of last README update. If any security vulnerabilities are discovered, they will be listed here along with an appropriate CVE.
-
-## Security reports
-
-To report a possible security vulnerability, **please email me** at `my first name at taoensso.com`. For particularly sensitive content, you may encrypt your message with my [public PGP/GPG key](https://www.taoensso.com/pgp). Thank you! - Peter Taoussanis
 
 ## Funding
 

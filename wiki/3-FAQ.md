@@ -1,10 +1,10 @@
 # Can I decrypt Tempel data with other tools?
 
-**No**, Tempel is **explicitly not designed** for interop with other general-purpose cryptographic tools or portability between platforms/languages/etc.
+**No**, Tempel is **intentionally not designed** for interop with other general-purpose cryptographic tools or portability between platforms/languages/etc.
 
 Tempel presumes that you'll do both encryption and decryption *using Tempel*, with **Clojure on the JVM**.
 
-This limitation allows Tempel's API and codebase to be kept small and simple.
+This limitation allows Tempel to implement unique features and keep its API and codebase small and simple.
 
 # How secure is Tempel?
 
@@ -59,6 +59,8 @@ To get a realistic idea of performance, I'd recommend **benchmarking in your own
 
 The JVM offers flexible and well-implemented crypto facilities, but they tend to be low-level in nature and are often **difficult to use correctly in practice**.
 
+The same can be said for even excellent libraries like [Bouncing Castle](https://www.bouncycastle.org/).
+
 Understanding what (not) to use and how to compose primitives into a coherent whole can require significant domain experience and/or research. **Mistakes can be costly** - difficult to correct, and potentially insecure.
 
 Tempel uses the JVM's crypto API, but wraps it to:
@@ -73,3 +75,29 @@ Tempel uses the JVM's crypto API, but wraps it to:
 Tempel does not implement ("roll") its own cryptographic primitives, though it *does* necessarily implement its own higher-level protocols and data formats.
 
 See [here](#how-secure-is-tempel) for more info about Tempel's security risks.
+
+# How does Tempel compare to Buddy?
+
+**tl;dr**: Tempel may be a possible alternative for some (but not all) parts of [Buddy](https://github.com/funcool/buddy). There's functionality overlap, but Buddy offers some facilities that Tempel does not and vice versa.
+
+#### Tempel's limitations
+
+- No public API for *low-level cryptographic functionality* as in [buddy-core](https://github.com/funcool/buddy-core), [buddy-hashers](https://github.com/funcool/buddy-hashers), etc.
+- No *authorization* functionality as in [buddy-auth](https://github.com/funcool/buddy-auth)
+- [No support](#can-i-decrypt-tempel-data-with-other-tools) for interop with other tools
+
+#### Tempel's strengths
+
+- A small, particularly easy-to-use high-level [API](./1-Getting-started#what-next) focused on [user keychains](./1-Getting-started#keychains) and keychain management.
+- Data formats designed to easily support item-specific algorithms and parameters, and to support (auto)-updating these kinds of things over time.
+
+#### Tempel's objectives
+
+I've built a number of applications over the years that deal with encrypted user data. Tempel's focused on addressing the *real-world nuisances* that I've personally encountered most often.
+
+These include things like:
+
+- Long-term *key management*.
+- Long-term *maintenance of algorithms and parameters* (scaling work factors and/or adjusting algorithms to keep up with best practice and moving hardware targets over time).
+- A consistent and easy-to-use API for *encrypting data with backup keys* so that it's always possible to reset a user's password, even when the user's data is fully encrypted at rest and the user's key is never stored.
+- A consistent and easy-to-use API for [AAD](https://taoensso.github.io/tempel/taoensso.tempel.html#var-aad-help), [AKM](https://taoensso.github.io/tempel/taoensso.tempel.html#var-akm-help), and [extracting public data](https://taoensso.github.io/tempel/taoensso.tempel.html#var-public-data) from encrypted payloads.

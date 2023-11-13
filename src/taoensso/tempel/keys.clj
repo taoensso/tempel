@@ -326,7 +326,7 @@
     `:keychain` - Returns (possibly new) `KeyChain` (default)
     `:as-map`   - Returns {:keys [keychain changed? key-id]}
 
-    And see `*config*` docstring for details:
+    And see `*config*` for details:
       `keypair-creator`."
 
   {:arglists
@@ -477,7 +477,7 @@
     `:only?`  - When truthy, returns a `KeyChain` with keys ONLY as
                 specified in call options (ignores any keys specified in `*config*`)
 
-    And see `*config*` docstring for details:
+    And see `*config*` for details:
       `symmetric-keys`, `asymmetric-keys`, `keypair-creator`."
 
   {:arglists '([& [{:keys [empty? only? symmetric-keys asymmetric-keys keypair-creator]}]])}
@@ -935,7 +935,7 @@
 
     - Unencrypted:
       - Any public keys in keychain (retrieve with `public-data`)
-      - Optional AAD (see `aad-help` docstring)
+      - Optional AAD (see `aad-help`)
       - Envelope data necessary for decryption (specifies algorithms, etc.)
 
   Output can be safely stored (e.g. in a database).
@@ -947,12 +947,12 @@
     `:password`   - String, byte[], or char[]             as with `encrypt-with-password`
     `:key-sym`    - `KeyChain` (see `keychain`) or byte[] as with `encrypt-with-symmetric-key`
 
-    `:ba-aad`     - See `aad-help` docstring
-    `:ba-akm`     - See `akm-help` docstring
+    `:ba-aad`     - See `aad-help`
+    `:ba-akm`     - See `akm-help`
     `:ba-content` - Optional additional byte[] content that should be encrypted
                     and included in output for retrieval with `keychain-decrypt`.
 
-    And see `*config*` docstring for details:
+    And see `*config*` for details:
       `hash-algo`, `sym-cipher-algo`, `pbkdf-algo`, `pbkdf-nwf`,
       `embed-key-ids?`, `embed-hmac?`, `backup-key`, `backup-opts`."
 
@@ -1070,7 +1070,7 @@
     `:ba-aad`     - Returns verified unencrypted embedded ?byte[] AAD
     `:as-map`     - Returns {:keys [keychain ba-aad ba-content]} map
 
-  See `keychain-encrypt` docstring for details.
+  See `keychain-encrypt` for details.
   See Tempel Wiki for detailed usage info, common patterns, examples, etc."
 
   #_(df/reference-data-formats :encrypted-keychain-v1)
