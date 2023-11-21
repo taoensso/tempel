@@ -20,7 +20,7 @@
 (deftest _headers
   [(is (=   (bytes/with-in [in] (bytes/with-out [out] 4 (df/write-head out) (.write out 1)) (df/read-head! in) (.readByte in)) 1))
    (is (->> (bytes/with-in [in] (bytes/with-out [out] 4 (.write out 1))  (df/read-head! in))
-         (enc/throws? :ex-info {:read {:expected [84 80 76]}})))])
+         (throws? :ex-info {:read {:expected [84 80 76]}})))])
 
 (deftest _randomness
   (let [k1 (impl/with-srng-insecure-deterministic!!! 10 (:key-prv (impl/keypair-create* :rsa-2048)))
@@ -47,9 +47,9 @@
          (vec (impl/hmac :sha-256 (as-ba "secret")     (as-ba "c1")     (as-ba "c2")))
          (vec (impl/hmac :sha-256 (as-ba "secret") nil (as-ba "c1") nil (as-ba "c2")))))
 
-   (is (enc/throws? (impl/hmac :sha-256 (byte-array 0)   (as-ba "c1"))))
-   (is (enc/throws? (impl/hmac :sha-256 (as-ba "secret") (byte-array 0))))
-   (is (enc/throws? (impl/hmac :sha-256 (as-ba "secret") (byte-array 0) (byte-array 0))))
+   (is (throws? (impl/hmac :sha-256 (byte-array 0)   (as-ba "c1"))))
+   (is (throws? (impl/hmac :sha-256 (as-ba "secret") (byte-array 0))))
+   (is (throws? (impl/hmac :sha-256 (as-ba "secret") (byte-array 0) (byte-array 0))))
    (is (enc/bytes?  (impl/hmac :sha-256 (as-ba "secret") (byte-array 0) (as-ba "c1"))))])
 
 (deftest _pbkdf-pbkdf2
