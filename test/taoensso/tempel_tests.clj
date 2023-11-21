@@ -9,7 +9,7 @@
    [taoensso.tempel.keys  :as keys]
    [taoensso.tempel       :as tempel])
 
-  (:import [javax.crypto AEADBadTagException]))
+  (:import [javax.crypto AEADBadTagException BadPaddingException]))
 
 (comment
   (remove-ns      'taoensso.tempel-tests)
@@ -20,7 +20,7 @@
 (deftest _headers
   [(is (=   (bytes/with-in [in] (bytes/with-out [out] 4 (df/write-head out) (.write out 1)) (df/read-head! in) (.readByte in)) 1))
    (is (->> (bytes/with-in [in] (bytes/with-out [out] 4 (.write out 1))  (df/read-head! in))
-         (enc/throws? :ex-info {:read {:expected [84 80 76]}})))])
+         (throws? :ex-info {:read {:expected [84 80 76]}})))])
 
 (deftest _randomness
   (let [k1 (impl/with-srng-insecure-deterministic!!! 10 (:key-prv (impl/keypair-create* :rsa-2048)))
@@ -47,9 +47,9 @@
          (vec (impl/hmac :sha-256 (as-ba "secret")     (as-ba "c1")     (as-ba "c2")))
          (vec (impl/hmac :sha-256 (as-ba "secret") nil (as-ba "c1") nil (as-ba "c2")))))
 
-   (is (enc/throws? (impl/hmac :sha-256 (byte-array 0)   (as-ba "c1"))))
-   (is (enc/throws? (impl/hmac :sha-256 (as-ba "secret") (byte-array 0))))
-   (is (enc/throws? (impl/hmac :sha-256 (as-ba "secret") (byte-array 0) (byte-array 0))))
+   (is (throws? (impl/hmac :sha-256 (byte-array 0)   (as-ba "c1"))))
+   (is (throws? (impl/hmac :sha-256 (as-ba "secret") (byte-array 0))))
+   (is (throws? (impl/hmac :sha-256 (as-ba "secret") (byte-array 0) (byte-array 0))))
    (is (enc/bytes?  (impl/hmac :sha-256 (as-ba "secret") (byte-array 0) (as-ba "c1"))))])
 
 (deftest _pbkdf-pbkdf2
@@ -83,46 +83,59 @@
 
 (comment (with-rand-data 32 64 (fn [ba-cnt ?ba-aad] [(is true) (is false) (is true)])))
 
-(deftest _symmetric-cipher-kit
-  (let [sck    (impl/as-symmetric-cipher-kit :aes-gcm-128-v1)
-        ba-key (as-ba 32 "pwd")]
+(deftest _symmetric-cipher-kits
+  (every? boolean
+    (flatten
+      (let [ba-key (as-ba 32 "pwd")
+            ba-cnt (as-ba    "cnt")]
 
-    [(testing "Basic operation, with AAD"
-       [(let [ba-cnt  (as-ba "cnt")
-              ba-aad  (impl/rand-ba 128)
-              ba-iv   (impl/rand-ba (impl/sck-iv-len sck))
-              ba-ecnt (impl/sck-encrypt sck ba-iv ba-key ba-cnt ba-aad)]
+        (for [sym-cipher-algo
+              [:aes-gcm-128-v1
+               :aes-gcm-256-v1
+               :aes-cbc-128-v1-deprecated
+               :aes-cbc-256-v1-deprecated]]
 
-          [(is (->> (impl/sck-decrypt sck ba-iv ba-key            ba-ecnt ba-aad) enc/utf8-ba->str (= "cnt")))
-           (is (->> (impl/sck-decrypt sck ba-iv (as-ba 32 "!pwd") ba-ecnt ba-aad) (throws? javax.crypto.AEADBadTagException)) "Bad key")])
+          (let [sck (impl/as-symmetric-cipher-kit sym-cipher-algo)
+                can-aad? (impl/sck-can-aad? sck)]
 
-        (let [ba-cnt  (as-ba "cnt")
-              ba-iv   (impl/rand-ba (impl/sck-iv-len sck))
-              ba-ecnt (impl/sck-encrypt sck ba-iv ba-key ba-cnt nil)]
+            [(testing "Basic operation + ?AAD"
+               [(let [ba-aad  (when can-aad? (impl/rand-ba 128))
+                      ba-iv   (impl/rand-ba  (impl/sck-iv-len sck))
+                      ba-ecnt (impl/sck-encrypt sck ba-iv ba-key ba-cnt ba-aad)]
 
-          [(is (->> (impl/sck-decrypt sck ba-iv ba-key ba-ecnt nil) enc/utf8-ba->str (= "cnt")) "No AAD")
-           (is (->> (impl/sck-decrypt sck ba-iv ba-key ba-ecnt (impl/rand-ba 128))
-                 (throws? javax.crypto.AEADBadTagException)) "Bad AAD")])
+                  [(is (->> (impl/sck-decrypt sck ba-iv ba-key            ba-ecnt ba-aad) enc/utf8-ba->str (= "cnt")))
+                   (is (->> (impl/sck-decrypt sck ba-iv (as-ba 32 "!pwd") ba-ecnt ba-aad) (throws? #{AEADBadTagException BadPaddingException})) "Bad key")])
 
-        (with-rand-data (mbytes 4) 256
-          (fn [ba-cnt ?ba-aad]
-            (let [ba-iv   (impl/rand-ba (impl/sck-iv-len sck))
-                  ba-ecnt (impl/sck-encrypt sck ba-iv ba-key ba-cnt  ?ba-aad)
-                  ba-dcnt (impl/sck-decrypt sck ba-iv ba-key ba-ecnt ?ba-aad)]
-              (is (bytes/ba= ba-cnt ba-dcnt)))))])
+                (if-not can-aad?
+                  :skip-aad-tests
+                  (let [ba-cnt  (as-ba "cnt")
+                        ba-iv   (impl/rand-ba (impl/sck-iv-len sck))
+                        ba-ecnt (impl/sck-encrypt sck ba-iv ba-key ba-cnt nil)]
 
-     (testing "Bad ba lengths"
-       [(is
-          (->>
-            (impl/sck-encrypt sck (impl/rand-ba 4) (impl/rand-ba 128) (as-ba "cnt") nil)
-            (throws? :ex-info {:length {:target 12, :actual 4}}))
-          "ba-iv too short")
+                    [(is (->> (impl/sck-decrypt sck ba-iv ba-key ba-ecnt nil) enc/utf8-ba->str (= "cnt")) "No AAD")
+                     (is (->> (impl/sck-decrypt sck ba-iv ba-key ba-ecnt (impl/rand-ba 128))
+                              (throws? AEADBadTagException)) "Bad AAD")]))
 
-        (is
-          (->>
-            (impl/sck-encrypt sck (impl/rand-ba 128) (impl/rand-ba 4) (as-ba "cnt") nil)
-            (throws? :ex-info {:length {:target 16, :actual 4}}))
-          "ba-key too short")])]))
+                (with-rand-data (mbytes 4) 256
+                  (fn [ba-cnt ?ba-aad]
+                    (let [?ba-aad (when can-aad? ?ba-aad)
+                          ba-iv   (impl/rand-ba (impl/sck-iv-len sck))
+                          ba-ecnt (impl/sck-encrypt sck ba-iv ba-key ba-cnt  ?ba-aad)
+                          ba-dcnt (impl/sck-decrypt sck ba-iv ba-key ba-ecnt ?ba-aad)]
+                      (is (bytes/ba= ba-cnt ba-dcnt)))))])
+
+             (testing "Bad ba lengths"
+               [(is
+                  (->>
+                    (impl/sck-encrypt sck (impl/rand-ba 4) (impl/rand-ba 128) (as-ba "cnt") nil)
+                    (throws? :ex-info {:length {:target (impl/sck-iv-len sck), :actual 4}}))
+                  "ba-iv too short")
+
+                (is
+                  (->>
+                    (impl/sck-encrypt sck (impl/rand-ba 128) (impl/rand-ba 4) (as-ba "cnt") nil)
+                    (throws? :ex-info {:length {:target (impl/sck-key-len sck), :actual 4}}))
+                  "ba-key too short")])]))))))
 
 (deftest _keypairs
   [(testing "Keypair equality"

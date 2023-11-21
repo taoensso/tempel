@@ -18,7 +18,8 @@
   (:api (enc/interns-overview)))
 
 ;; TODO Consider :symmetric-<nbits> key-algo, etc.
-;; Benefits not currently worth the user-side complexity
+;; Benefits not currently worth the user-side complexity so we instead
+;; just default to max (256)
 
 ;;;; IDs
 ;;
@@ -268,20 +269,22 @@
 
 (defprotocol ISymmetricCipherKit
   "Private protocol, lowest level symmetric API. Zero enveloping."
-  (       sck-kid     [_])
-  (^bytes sck-encrypt [_ ba-iv ba-key ba-content           ?ba-aad] "=> ba-encrypted-content")
-  (^bytes sck-decrypt [_ ba-iv ba-key ba-encrypted-content ?ba-aad] "=> ba-content-decrypted")
-  (^long  sck-key-len [_])
-  (^long  sck-iv-len  [_]))
+  (       sck-kid      [_])
+  (       sck-can-aad? [_])
+  (^bytes sck-encrypt  [_ ba-iv ba-key ba-content           ?ba-aad] "=> ba-encrypted-content")
+  (^bytes sck-decrypt  [_ ba-iv ba-key ba-encrypted-content ?ba-aad] "=> ba-content-decrypted")
+  (^long  sck-key-len  [_])
+  (^long  sck-iv-len   [_]))
 
 (deftype SymmetricCipherKit-aes-gcm-v1
   [^int key-len ^int iv-len ^int auth-tag-nbits]
 
   ISymmetricCipherKit
-  (sck-kid     [_] :aes-gcm-v1)
-  (sck-key-len [_] key-len)
-  (sck-iv-len  [_] iv-len)
-  (sck-encrypt [_ ba-iv ba-key ba-content ?ba-aad]
+  (sck-kid      [_] :aes-gcm-v1)
+  (sck-can-aad? [_] true)
+  (sck-key-len  [_] key-len)
+  (sck-iv-len   [_] iv-len)
+  (sck-encrypt  [_ ba-iv ba-key ba-content ?ba-aad]
     (let [cipher     (as-symmetric-cipher :aes-gcm)
           ba-key     (bytes/ba->sublen key-len ba-key)
           ba-iv      (bytes/ba->sublen iv-len  ba-iv)
@@ -305,14 +308,22 @@
 
       (.doFinal cipher ba-encrypted-content))))
 
+(defn- ensure-no-aad! [sck ?ba-aad]
+  (when-let [^bytes ba-aad ?ba-aad]
+    (when (pos?    (alength ba-aad))
+      (throw
+        (ex-info "AAD not supported for cipher"
+          {:cipher (sck-kid sck)})))))
+
 (deftype SymmetricCipherKit-aes-cbc-v1-deprecated
   [^int key-len ^int iv-len]
 
   ;; Deprecated since:
+  ;;   - Doesn't support AAD.
   ;;   - Doesn't include MAC, so cannot verify key before attempting decryption.
   ;;   - GCM mode generally preferred (faster, more secure, includes MAC, etc.).
 
-  ;; Could write a v2 kit with manual MAC:
+  ;; Could (but not bothering to) write a v2 kit with manual AAD and MAC, e.g.:
   ;;   - On encrypt:
   ;;     - Add MAC to ciphertext = (hmac ba-derived-key (+ ba-iv ba-encrypted-content ?ba-aad))
   ;;       - Where ba-derived-key is something like (hmac ba-key ba-const-auth) or (hmac ba-key ba-iv), etc.
@@ -322,26 +333,29 @@
   ;;     3. Intentional data/aad manipulation (attacker cannot regen MAC without ba-key)
 
   ISymmetricCipherKit
-  (sck-kid     [_] :aes-cbc-v1-deprecated)
-  (sck-key-len [_] key-len)
-  (sck-iv-len  [_] iv-len)
-  (sck-encrypt [_ ba-iv ba-key ba-content ?ba-aad]
+  (sck-kid      [_] :aes-cbc-v1-deprecated)
+  (sck-can-aad? [_] false)
+  (sck-key-len  [_] key-len)
+  (sck-iv-len   [_] iv-len)
+  (sck-encrypt  [sck ba-iv ba-key ba-content ?ba-aad]
     (let [cipher     (as-symmetric-cipher :aes-cbc)
           ba-key     (bytes/ba->sublen key-len ba-key)
           ba-iv      (bytes/ba->sublen iv-len  ba-iv)
           key-spec   (javax.crypto.spec.SecretKeySpec. ba-key "AES")
           param-spec (javax.crypto.spec.IvParameterSpec. ba-iv)]
 
+      (ensure-no-aad! sck ?ba-aad)
       (.init    cipher javax.crypto.Cipher/ENCRYPT_MODE key-spec param-spec)
       (.doFinal cipher ba-content)))
 
-  (sck-decrypt [_ ba-iv ba-key ba-encrypted-content ?ba-aad]
+  (sck-decrypt [sck ba-iv ba-key ba-encrypted-content ?ba-aad]
     (let [cipher     (as-symmetric-cipher :aes-cbc)
           ba-key     (bytes/ba->sublen key-len ba-key)
           ba-iv      (bytes/ba->sublen iv-len  ba-iv)
           key-spec   (javax.crypto.spec.SecretKeySpec. ba-key "AES")
           param-spec (javax.crypto.spec.IvParameterSpec. ba-iv)]
 
+      (ensure-no-aad! sck ?ba-aad)
       (.init    cipher javax.crypto.Cipher/DECRYPT_MODE key-spec param-spec)
       (.doFinal cipher ba-encrypted-content))))
 
@@ -352,11 +366,13 @@
 
       sck-aes-cbc-128-v1-deprecated (SymmetricCipherKit-aes-cbc-v1-deprecated. 16 16)
       sck-aes-cbc-256-v1-deprecated (SymmetricCipherKit-aes-cbc-v1-deprecated. 32 16)
-      expected #{:aes-gcm-128-v1
-                 :aes-gcm-192-v1
-                 :aes-gcm-256-v1
-                 :aes-cbc-128-v1-deprecated
-                 :aes-cbc-256-v1-deprecated}]
+
+      expected
+      #{:aes-gcm-128-v1
+        :aes-gcm-192-v1
+        :aes-gcm-256-v1
+        :aes-cbc-128-v1-deprecated
+        :aes-cbc-256-v1-deprecated}]
 
   (defn as-symmetric-cipher-kit
     "Returns `ISymmetricCipherKit` implementer, or throws.
@@ -397,11 +413,11 @@
   These specify the default algo for each corresponding capability."
   [key-algo]
   (case key-algo
-    :symmetric
-    {:sym-cipher-algo :aes-gcm-128-v1
-     :symmetric?      true}
+    :symmetric {:symmetric?  true, :sym-cipher-algo :aes-gcm-128-v1}
+    :rsa       {:asymmetric? true, :wild? true, :kf-algo :rsa}
+    :dh        {:asymmetric? true, :wild? true, :kf-algo :dh}
+    :ec        {:asymmetric? true, :wild? true, :kf-algo :ec}
 
-    :rsa {:kf-algo :rsa, :asymmetric? true, :wild? true}
     (:rsa-1024 :rsa-2048 :rsa-3072 :rsa-4096)
     {:kf-algo          :rsa
      ;; :ka-algo       nil
@@ -409,7 +425,6 @@
      :asym-cipher-algo :rsa-oaep-sha-256-mgf1
      :asymmetric?      true}
 
-    :dh {:kf-algo :dh, :asymmetric? true, :wild? true}
     (:dh-1024 :dh-2048 :dh-3072 :dh-4096)
     {:kf-algo             :dh
      :ka-algo             :dh
@@ -417,7 +432,6 @@
      ;; :asym-cipher-algo nil
      :asymmetric?         true}
 
-    :ec {:kf-algo :ec, :asymmetric? true, :wild? true}
     (:ec-secp256r1 :ec-secp384r1 :ec-secp521r1)
     {:kf-algo             :ec
      :ka-algo             :ecdh
