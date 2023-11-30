@@ -31,6 +31,21 @@ See [here][GitHub releases] for earlier releases.
 
 Note that Tempel is [not intended](../../wiki/3-Faq#can-i-decrypt-tempel-data-with-other-tools) for interop with other cryptographic tools/APIs.
 
+## Roadmap
+
+Tempel has a fixed scope, and is **fully complete**. I'm happy with its design and implementation, and believe it meets all its objectives in its current form. I'm not anticipating significant changes.
+
+Still, given the sensitivity of the problem domain, I plan to approach Tempel's official stable release as a phased rollout to allow time for user feedback before locking things down:
+
+| Phase | Date    | Release       | Appropriate for
+| :-:   | :--     | :--           | :--
+|  ➤    | 2023-11 | `v1.0-alpha`  | Dev/testing with disposable data
+|       | 2024-01 | `v1.0-beta`   | Dev/testing with disposable data
+|       | 2024-03 | `v1.0-RC`     | Staging, with ephemeral or low-value data
+|       | 2024-05 | `v1.0` final  | Production, with real data
+
+`v1.0` final will be considered "**done**"- the library is expected to need+see only minimal maintance from that point.
+
 ## Disclaimer
 
 **Important**: while Tempel has been written and tested with care, the nature of the problem domain inevitably means that bugs and/or misuse can be **especially harmful and/or easy to make**.
