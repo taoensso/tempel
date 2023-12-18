@@ -282,7 +282,7 @@
 
   Return value depends on `:return` option:
     `:keychain` - Returns (possibly new) `KeyChain` (default)
-    `:as-map`   - Returns {:keys [keychain changed? key-id]}"
+    `:map`      - Returns {:keys [keychain changed? key-id]}"
 
   [keychain x-key &
    [{:keys [key-id priority return]
@@ -303,16 +303,16 @@
 
     (case return
       :keychain kc2
-      :as-map
+      :map
       (enc/assoc-some
         {:keychain keychain, :changed? (not (identical? kc1 kc2))}
         :key-id @auto-key-id_)
 
       (enc/unexpected-arg! return
-        {:expected #{:keychain :as-map}
+        {:expected #{:keychain :map}
          :context  `keychain-add-symmetric-key}))))
 
-(comment (keychain-add-symmetric-key (keychain) :random {:return :as-map}))
+(comment (keychain-add-symmetric-key (keychain) :random {:return :map}))
 
 (defn ^:public keychain-add-asymmetric-keypair
   "Produces a ?new `KeyChain` that contains the given asymmetric keypair.
@@ -324,7 +324,7 @@
 
   Return value depends on `:return` option:
     `:keychain` - Returns (possibly new) `KeyChain` (default)
-    `:as-map`   - Returns {:keys [keychain changed? key-id]}
+    `:map`      - Returns {:keys [keychain changed? key-id]}
 
     And see `*config*` for details:
       `keypair-creator`."
@@ -370,13 +370,13 @@
 
     (case return
       :keychain kc2
-      :as-map
+      :map
       (enc/assoc-some
         {:keychain keychain, :changed? (not (identical? kc1 kc2))}
         :key-id @auto-key-id_)
 
       (enc/unexpected-arg! return
-        {:expected #{:keychain :as-map}
+        {:expected #{:keychain :map}
          :context  `keychain-add-asymmetric-keypair}))))
 
 (comment (keychain-add-asymmetric-keypair (keychain)
@@ -1068,7 +1068,7 @@
     `:keychain`   - Returns decrypted `KeyChain` (default)
     `:ba-content` - Returns decrypted byte[] content
     `:ba-aad`     - Returns verified unencrypted embedded ?byte[] AAD
-    `:as-map`     - Returns {:keys [keychain ba-aad ba-content]} map
+    `:map`        - Returns {:keys [keychain ba-aad ba-content]} map
 
   See `keychain-encrypt` for details.
   See Tempel Wiki for detailed usage info, common patterns, examples, etc."
@@ -1167,7 +1167,7 @@
                 :keychain   keychain
                 :ba-content ?ba-ucnt
                 :ba-aad     ?ba-aad
-                :as-map
+                :map
                 (enc/assoc-some
                   {:keychain   keychain}
                   :ba-content  ?ba-ucnt
@@ -1180,7 +1180,7 @@
                   :cnt (bytes/?utf8-ba->?str ?ba-ucnt))
 
                 (enc/unexpected-arg! return
-                  {:expected #{:keychain :ba-content :ba-aad :as-map}
+                  {:expected #{:keychain :ba-content :ba-aad :map}
                    :context  `keychain-decrypt})))))))))
 
 (comment

@@ -463,7 +463,7 @@
   (case return-kind
     :ba-content ?ba-cnt
     :ba-aad     ?ba-aad
-    :as-map
+    :map
     (enc/assoc-some {}
       :ba-content ?ba-cnt
       :ba-aad     ?ba-aad)
@@ -474,7 +474,7 @@
       :cnt (bytes/?utf8-ba->?str ?ba-cnt))
 
     (enc/unexpected-arg! return-kind
-      {:expected #{:ba-content :ba-aad :as-map}
+      {:expected #{:ba-content :ba-aad :map}
        :context  context})))
 
 (defn encrypt-with-password
@@ -563,7 +563,7 @@
   Return value depends on `:return` option:
     `:ba-content` - Returns decrypted byte[] content (default)
     `:ba-aad`     - Returns verified unencrypted embedded ?byte[] AAD
-    `:as-map`     - Returns {:keys [ba-aad ba-content]} map
+    `:map`        - Returns {:keys [ba-aad ba-content]} map
 
   Takes a password (string, byte[], or char[]). Password will be \"stretched\"
   using an appropriate \"Password-Based Key Derivation Function\" (PBKDF).
@@ -711,7 +711,7 @@
   Return value depends on `:return` option:
     `:ba-content` - Returns decrypted byte[] content (default)
     `:ba-aad`     - Returns verified unencrypted embedded ?byte[] AAD
-    `:as-map`     - Returns {:keys [ba-aad ba-content]} map
+    `:map`        - Returns {:keys [ba-aad ba-content]} map
 
   Takes a `KeyChain` (see `keychain`) or byte[] key.
   Will throw on decryption failure (bad key, etc.)."
@@ -919,7 +919,7 @@
   Return value depends on `:return` option:
     `:ba-content` - Returns decrypted byte[] content (default)
     `:ba-aad`     - Returns verified unencrypted embedded ?byte[] AAD
-    `:as-map`     - Returns {:keys [ba-aad ba-content]} map
+    `:map`        - Returns {:keys [ba-aad ba-content]} map
 
   Takes a `KeyChain` (see `keychain`) or `KeyPair` (see `keypair-create`).
   Key algorithm must support use as an asymmetric cipher.
@@ -1141,7 +1141,7 @@
   Return value depends on `:return` option:
     `:ba-content` - Returns decrypted byte[] content (default)
     `:ba-aad`     - Returns verified unencrypted embedded ?byte[] AAD
-    `:as-map`     - Returns {:keys [ba-aad ba-content]} map
+    `:map`        - Returns {:keys [ba-aad ba-content]} map
 
   Takes `KeyChain`s (see `keychain`) and/or `KeyPair`s (see `keypair-create`).
   Key algorithm must support key agreement.
@@ -1318,7 +1318,7 @@
   Return value depends on `:return` option:
     `:ba-content` - Returns verified ?byte[] content (when embedded)
     `:ba-aad`     - Returns verified ?byte[] AAD     (when embedded)
-    `:as-map`     - Returns {:keys [ba-aad ba-content]} map (default)
+    `:map`        - Returns {:keys [ba-aad ba-content]} map (default)
 
   Returns nil when verification fails.
 
@@ -1333,10 +1333,10 @@
   {:arglists
    '([ba-signed signer-key-pub &
       [{:keys [ba-content return ba-akm]
-        :or   {return :as-map}}]])}
+        :or   {return :map}}]])}
 
   [ba-signed signer-key-pub & [opts]]
-  (let [{:keys [ba-content return] :or {return :as-map}} opts
+  (let [{:keys [ba-content return] :or {return :map}} opts
         {:keys [ba-akm] :as opts+}
         (get-opts+ opts)]
 
@@ -1372,4 +1372,4 @@
 (comment
   (let [kc        (keychain)
         ba-signed (sign (as-ba "cnt") kc {:ba-aad (as-ba "aad")})]
-    (signed ba-signed kc {:return :as-map #_:_test})))
+    (signed ba-signed kc {:return :map #_:_test})))
