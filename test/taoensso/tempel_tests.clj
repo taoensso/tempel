@@ -475,7 +475,7 @@
               enc-backup-opts   (when enc-backup-akm? {:ba-akm                             ba-enc-backup-akm})
               dec-backup-opts   (when enc-backup-akm? {:ba-akm (case dec-backup-akm* :good ba-enc-backup-akm :bad (impl/rand-ba 32) nil nil)})
               enc-opts {:ba-akm ba-enc-akm :backup-key enc-backup-key :backup-opts enc-backup-opts :ba-aad ba-enc-aad :embed-hmac? embed-hmac?}
-              dec-opts {:ba-akm ba-dec-akm :backup-key dec-backup-key :backup-opts dec-backup-opts :return :as-map}
+              dec-opts {:ba-akm ba-dec-akm :backup-key dec-backup-key :backup-opts dec-backup-opts :return :map}
 
               enc-result (try (enc-fn input      enc-key enc-opts) (catch Throwable t {:error t}))
               dec-result (try (dec-fn enc-result dec-key dec-opts) (catch Throwable t {:error t}))
@@ -734,7 +734,7 @@
         (with-rand-data (mbytes 4) 256
           (fn [ba-cnt ?ba-aad]
             (let [ba-signed (sig ba-cnt    kc1 {:ba-aad ?ba-aad})
-                  verified  (ver ba-signed kc1 {:return :as-map})]
+                  verified  (ver ba-signed kc1 {:return :map})]
 
               [(is (bytes/?ba=  ba-cnt (:ba-content verified)))
                (is (bytes/?ba= ?ba-aad (:ba-aad     verified)))])))]))])
