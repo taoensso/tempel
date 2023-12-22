@@ -347,6 +347,17 @@
       (.init    cipher javax.crypto.Cipher/DECRYPT_MODE key-spec param-spec)
       (.doFinal cipher ba-encrypted-content))))
 
+(defonce java-major-version
+  ;; https://www.oracle.com/java/technologies/javase/versioning-naming.html
+  ;; specifies how the Java version is encoded. For our use case, only
+  ;; the major version is necessary.
+  (let [x (re-matches #"([0-9]+).*" (System/getProperty "java.version"))]
+    (Integer/parseInt (second x))))
+
+(defn bit-flip-ba [^"[B" ba idx bit-num]
+  (doto (aclone ba)
+    (aset-byte idx (bit-flip (aget ba idx) bit-num))))
+
 (deftype SymmetricCipherKit-chacha20-poly1305-v1
     [^int key-len ^int iv-len]
 
@@ -373,6 +384,18 @@
           key-spec   (javax.crypto.spec.SecretKeySpec. ba-key "ChaCha20")
           param-spec (javax.crypto.spec.IvParameterSpec. ba-iv)]
 
+      (when (< java-major-version 21)
+        ;; Prior to Java 21, Chacha20-Poly1305 didn't allow reusing the same
+        ;; IV (nonce) for **decryption**. To work-around this, we "reset" the
+        ;; cipher instance using a "synthetic IV", before initializing it with
+        ;; the real one. The synthetic IV is based on the IV passed as argument.
+        ;; We do a simple bit flip on the IV (LSB of the first IV byte) for two
+        ;; reasons: a) this way we make sure it's different than the real IV we
+        ;; want to use, and b) it's way faster then generating a completely
+        ;; random IV. This has a performance hit of around 2 micro-seconds on
+        ;; an AMD Ryzen 7 PRO 3700U (according to criterium/bench)
+        (let [bit-flipped-param-spec (javax.crypto.spec.IvParameterSpec. (bit-flip-ba ba-iv 0 1))]
+          (.init cipher javax.crypto.Cipher/DECRYPT_MODE key-spec bit-flipped-param-spec)))
       (.init cipher javax.crypto.Cipher/DECRYPT_MODE key-spec param-spec)
       (when-let [^bytes ba-aad ?ba-aad] (.updateAAD cipher ba-aad))
 
