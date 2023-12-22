@@ -84,43 +84,107 @@
 (comment (with-rand-data 32 64 (fn [ba-cnt ?ba-aad] [(is true) (is false) (is true)])))
 
 (deftest _symmetric-cipher-kit
-  (let [sck    (impl/as-symmetric-cipher-kit :aes-gcm-128-v1)
-        ba-key (as-ba 32 "pwd")]
+  (let [aes-gcm-sck (impl/as-symmetric-cipher-kit :aes-gcm-128-v1)
+        ba-aes-key  (as-ba 32 "pwd")
+        chacha-poly-sck    (impl/as-symmetric-cipher-kit :chacha20-poly1305-v1)
+        ba-chacha-poly-key (as-ba 32 "pwd")
+        ;; Chacha2020-Poly1305 JDK implementation doesn't allow initializing the
+        ;; same cipher instance a second time with the same key and IV (reusing
+        ;; the IV/nonce with the same encryption key completely breaks the
+        ;; security properties of the cipher when encrypting).
+        ;;
+        ;; Because of the way tempel implements symmetric ciphers (keeping a
+        ;; single cipher instance per thread, and calling the initialization
+        ;; method each time an encryption or decryption operation is used), we
+        ;; can't do an encryption operation followed by a decryption operation
+        ;; to test the results. Because in that case **we need** to use the same
+        ;; key and IV (otherwise the decryption will always fail).
+        ;;
+        ;; By the way, pretty much the same happens for AES-GCM cipher
+        ;; instances. But in that case, the JDK implementation only enforces the
+        ;; restriction when initializing the cipher for encryption
+        ;; mode. Decryption mode is not affected in the AES-GCM case (while it
+        ;; is in the Chacha20-Poly1305 case).
+        ;;
+        ;; As a work-around, we "reset" the cipher instance with
+        ;; another (random) IV in between operations.
+        reset-chacha-poly-fn (fn []
+                               ;; Reset the cipher instance internal state by
+                               ;; encrypting irrelevant data with a random IV
+                               (impl/sck-encrypt chacha-poly-sck
+                                                 (impl/rand-ba (impl/sck-iv-len chacha-poly-sck))
+                                                 ba-chacha-poly-key
+                                                 ;; totally irrelevant data and aad
+                                                 (byte-array 0) nil))
+        bit-flip-fn (fn [^"[B" ba idx bit-num]
+                      (aset-byte ba idx (bit-flip (aget ba idx) bit-num))
+                      ba)]
 
     [(testing "Basic operation, with AAD"
        [(let [ba-cnt  (as-ba "cnt")
               ba-aad  (impl/rand-ba 128)
-              ba-iv   (impl/rand-ba (impl/sck-iv-len sck))
-              ba-ecnt (impl/sck-encrypt sck ba-iv ba-key ba-cnt ba-aad)]
+              ba-iv   (impl/rand-ba (impl/sck-iv-len aes-gcm-sck))
+              aes-ba-ecnt (impl/sck-encrypt aes-gcm-sck ba-iv ba-aes-key ba-cnt ba-aad)
+              aes-ba-bad-ecnt (bit-flip-fn (aclone aes-ba-ecnt) 0 1)
+              ba-chacha-poly-iv       (impl/rand-ba (impl/sck-iv-len chacha-poly-sck))
+              chacha-poly-ba-ecnt     (impl/sck-encrypt chacha-poly-sck ba-chacha-poly-iv ba-chacha-poly-key ba-cnt ba-aad)
+              chacha-poly-ba-bad-ecnt (bit-flip-fn (aclone chacha-poly-ba-ecnt) 0 1)]
 
-          [(is (->> (impl/sck-decrypt sck ba-iv ba-key            ba-ecnt ba-aad) enc/utf8-ba->str (= "cnt")))
-           (is (->> (impl/sck-decrypt sck ba-iv (as-ba 32 "!pwd") ba-ecnt ba-aad) (throws? javax.crypto.AEADBadTagException)) "Bad key")])
+          [(is (->> (impl/sck-decrypt aes-gcm-sck ba-iv ba-aes-key        aes-ba-ecnt     ba-aad) enc/utf8-ba->str (= "cnt")))
+           (is (->> (impl/sck-decrypt aes-gcm-sck ba-iv (as-ba 32 "!pwd") aes-ba-ecnt     ba-aad) (throws? javax.crypto.AEADBadTagException)) "Bad key")
+           (is (->> (impl/sck-decrypt aes-gcm-sck ba-iv ba-aes-key        aes-ba-bad-ecnt ba-aad) (throws? javax.crypto.AEADBadTagException)) "Bad key")
+           ;; Same key and IV as in previous call (to encrypt the data), so we need to reset the cipher.
+           (reset-chacha-poly-fn)
+           (is (->> (impl/sck-decrypt chacha-poly-sck ba-chacha-poly-iv ba-chacha-poly-key chacha-poly-ba-ecnt ba-aad) enc/utf8-ba->str (= "cnt")))
+           ;; Different key from previous call, so no need to reset the cipher.
+           (is (->> (impl/sck-decrypt chacha-poly-sck ba-chacha-poly-iv (as-ba 32 "!pwd")  chacha-poly-ba-ecnt ba-aad)
+                    (throws? javax.crypto.AEADBadTagException)) "Bad key")
+           ;; Again, different key from previous call, so no need to reset the cipher.
+           (is (->> (impl/sck-decrypt chacha-poly-sck ba-chacha-poly-iv ba-chacha-poly-key chacha-poly-ba-bad-ecnt ba-aad)
+                    (throws? javax.crypto.AEADBadTagException)) "Bad ciphertext")])
 
-        (let [ba-cnt  (as-ba "cnt")
-              ba-iv   (impl/rand-ba (impl/sck-iv-len sck))
-              ba-ecnt (impl/sck-encrypt sck ba-iv ba-key ba-cnt nil)]
+        (let [ba-cnt (as-ba "cnt")
+              ba-aad (impl/rand-ba 128)
+              ba-iv  (impl/rand-ba (impl/sck-iv-len aes-gcm-sck))
+              ba-ecnt-no-aad (impl/sck-encrypt aes-gcm-sck ba-iv ba-aes-key ba-cnt nil)
+              ba-chacha-poly-iv   (impl/rand-ba (impl/sck-iv-len chacha-poly-sck))
+              chacha-poly-ba-ecnt (impl/sck-encrypt chacha-poly-sck ba-chacha-poly-iv ba-chacha-poly-key ba-cnt nil)
+              ba-bad-aad (bit-flip-fn (aclone ba-aad) 0 1)]
 
-          [(is (->> (impl/sck-decrypt sck ba-iv ba-key ba-ecnt nil) enc/utf8-ba->str (= "cnt")) "No AAD")
-           (is (->> (impl/sck-decrypt sck ba-iv ba-key ba-ecnt (impl/rand-ba 128))
-                 (throws? javax.crypto.AEADBadTagException)) "Bad AAD")])
+          [(is (->> (impl/sck-decrypt aes-gcm-sck ba-iv ba-aes-key ba-ecnt-no-aad nil) enc/utf8-ba->str (= "cnt")) "No AAD")
+           (is (->> (impl/sck-decrypt aes-gcm-sck ba-iv ba-aes-key ba-ecnt-no-aad (impl/rand-ba 128))
+                    (throws? javax.crypto.AEADBadTagException)) "Bad AAD")
+           (reset-chacha-poly-fn)
+           (is (->> (impl/sck-decrypt chacha-poly-sck ba-chacha-poly-iv ba-chacha-poly-key chacha-poly-ba-ecnt nil) enc/utf8-ba->str (= "cnt")) "No AAD")
+           (reset-chacha-poly-fn)
+           (is (->> (impl/sck-decrypt chacha-poly-sck ba-chacha-poly-iv ba-chacha-poly-key chacha-poly-ba-ecnt (impl/rand-ba 128))
+                    (throws? javax.crypto.AEADBadTagException)) "Bad AAD")
+           (reset-chacha-poly-fn)
+           (is (->> (impl/sck-decrypt chacha-poly-sck ba-chacha-poly-iv ba-chacha-poly-key chacha-poly-ba-ecnt ba-bad-aad)
+                    (throws? javax.crypto.AEADBadTagException)) "Bad AAD")])
 
         (with-rand-data (mbytes 4) 256
           (fn [ba-cnt ?ba-aad]
-            (let [ba-iv   (impl/rand-ba (impl/sck-iv-len sck))
-                  ba-ecnt (impl/sck-encrypt sck ba-iv ba-key ba-cnt  ?ba-aad)
-                  ba-dcnt (impl/sck-decrypt sck ba-iv ba-key ba-ecnt ?ba-aad)]
+            (let [ba-iv   (impl/rand-ba (impl/sck-iv-len aes-gcm-sck))
+                  ba-ecnt (impl/sck-encrypt aes-gcm-sck ba-iv ba-aes-key ba-cnt  ?ba-aad)
+                  ba-dcnt (impl/sck-decrypt aes-gcm-sck ba-iv ba-aes-key ba-ecnt ?ba-aad)]
+              (is (bytes/ba= ba-cnt ba-dcnt)))
+            (let [ba-iv   (impl/rand-ba (impl/sck-iv-len chacha-poly-sck))
+                  ba-ecnt (impl/sck-encrypt chacha-poly-sck ba-iv ba-chacha-poly-key ba-cnt  ?ba-aad)
+                  _ (reset-chacha-poly-fn)
+                  ba-dcnt (impl/sck-decrypt chacha-poly-sck ba-iv ba-chacha-poly-key ba-ecnt ?ba-aad)]
               (is (bytes/ba= ba-cnt ba-dcnt)))))])
 
      (testing "Bad ba lengths"
        [(is
           (->>
-            (impl/sck-encrypt sck (impl/rand-ba 4) (impl/rand-ba 128) (as-ba "cnt") nil)
+            (impl/sck-encrypt aes-gcm-sck (impl/rand-ba 4) (impl/rand-ba 128) (as-ba "cnt") nil)
             (throws? :ex-info {:length {:target 12, :actual 4}}))
           "ba-iv too short")
 
         (is
           (->>
-            (impl/sck-encrypt sck (impl/rand-ba 128) (impl/rand-ba 4) (as-ba "cnt") nil)
+            (impl/sck-encrypt aes-gcm-sck (impl/rand-ba 128) (impl/rand-ba 4) (as-ba "cnt") nil)
             (throws? :ex-info {:length {:target 16, :actual 4}}))
           "ba-key too short")])]))
 
