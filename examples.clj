@@ -377,7 +377,7 @@ admin-public-keychain
       ba-secret-data        (nippy/freeze {:my-secret-data? true})
       ba-encrypted          (tempel/encrypt-with-2-keypairs ba-secret-data alice-public-keychain barry-secret-keychain)
       ba-decrypted-by-alice (tempel/decrypt-with-2-keypairs ba-encrypted   alice-secret-keychain barry-public-keychain)
-      ba-decrypted-by-barry (tempel/decrypt-with-2-keypairs ba-encrypted   barry-secret-keychain alice-secret-keychain)]
+      ba-decrypted-by-barry (tempel/decrypt-with-2-keypairs ba-encrypted   barry-secret-keychain alice-public-keychain)]
 
   ;; Both Alice and Barry can decrypt the data:
   [(= (nippy/thaw ba-decrypted-by-alice) {:my-secret-data? true})
