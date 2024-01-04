@@ -209,7 +209,7 @@
 
       Default: `:ref-100-msecs`, a reasonable value for many logins.
 
-    `:sym-cipher-algo` ∈ #{*:aes-gcm-128-v1 :aes-gcm-256-v1}
+    `:sym-cipher-algo` ∈ #{*:aes-gcm-128-v1 :aes-gcm-256-v1 :chacha20-poly1305-v1}
       The symmetric cipher algorithm to use. A cipher that supports \"AEAD\"
       (Authenticated Encryption with Associated Data) must generally be provided
       in order to use `:ba-aad` options (see `aad-help`).

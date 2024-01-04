@@ -93,7 +93,8 @@
               [:aes-gcm-128-v1
                :aes-gcm-256-v1
                :aes-cbc-128-v1-deprecated
-               :aes-cbc-256-v1-deprecated]]
+               :aes-cbc-256-v1-deprecated
+               :chacha20-poly1305-v1]]
 
           (let [sck (impl/as-symmetric-cipher-kit sym-cipher-algo)
                 can-aad? (impl/sck-can-aad? sck)]

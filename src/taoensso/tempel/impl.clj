@@ -24,10 +24,10 @@
 ;;;; IDs
 ;;
 ;; ✓ pbkdf-kit        - #{:scrypt-r8p1-v1 :pbkdf2-hmac-sha-256-v1 :sha-512-v1-deprecated}
-;; ✓ sym-cipher-kit   - #{:aes-gcm-<nbits>-v1 :aes-cbc-<nbits>-v1-deprecated}
+;; ✓ sym-cipher-kit   - #{:aes-gcm-<nbits>-v1 :aes-cbc-<nbits>-v1-deprecated :chacha20-poly1305-v1}
 ;;
 ;; ✓ hash-algo        - #{:md5 :sha-1 :sha-256 :sha-512}
-;; ✓ sym-cipher-algo  - #{:aes-gcm :aes-cbc}
+;; ✓ sym-cipher-algo  - #{:aes-gcm :aes-cbc :chacha20-poly1305}
 ;; ✓ asym-cipher-algo - #{:rsa-oaep-sha-256-mgf1}
 ;; ✓ sig-algo         - #{:sha-<nbits>-rsa :sha-<nbits>-ecdsa}
 ;;
@@ -253,18 +253,20 @@
 (def ^:const default-sym-key-len "256 bits" 32)
 (def ^:const min-iv-len          "128 bits" 16)
 
-(let [cipher-aes-gcm_ (enc/thread-local (javax.crypto.Cipher/getInstance "AES/GCM/NoPadding"))
-      cipher-aes-cbc_ (enc/thread-local (javax.crypto.Cipher/getInstance "AES/CBC/PKCS5Padding"))]
+(let [cipher-aes-gcm_    (enc/thread-local (javax.crypto.Cipher/getInstance "AES/GCM/NoPadding"))
+      cipher-aes-cbc_    (enc/thread-local (javax.crypto.Cipher/getInstance "AES/CBC/PKCS5Padding"))
+      chacha20-poly1305_ (enc/thread-local (javax.crypto.Cipher/getInstance "ChaCha20-Poly1305"))]
 
   (defn- as-symmetric-cipher
     "Returns `javax.crypto.Cipher`, or throws.
-    Takes `sym-cipher-algo` ∈ #{:aes-gcm :aes-cbc}."
+    Takes `sym-cipher-algo` ∈ #{:aes-gcm :aes-cbc :chacha20-poly1305}."
     ^javax.crypto.Cipher [sym-cipher-algo]
     (case sym-cipher-algo
       :aes-gcm @cipher-aes-gcm_
       :aes-cbc @cipher-aes-cbc_
+      :chacha20-poly1305 @chacha20-poly1305_
       (enc/unexpected-arg! sym-cipher-algo
-        {:expected #{:aes-gcm :aes-cbc}
+        {:expected #{:aes-gcm :aes-cbc :chacha20-poly1305}
          :context  `as-symmetric-cipher}))))
 
 (defprotocol ISymmetricCipherKit
@@ -292,7 +294,7 @@
           param-spec (javax.crypto.spec.GCMParameterSpec. auth-tag-nbits ba-iv)]
 
       (.init cipher javax.crypto.Cipher/ENCRYPT_MODE key-spec param-spec)
-      (when-let [^bytes ba-aad ?ba-aad] (.updateAAD cipher ba-aad)) ; Influences tag in ciphertext
+      (when-let [^bytes ba-aad ?ba-aad] (.updateAAD cipher ba-aad))
 
       (.doFinal cipher ba-content)))
 
@@ -359,6 +361,47 @@
       (.init    cipher javax.crypto.Cipher/DECRYPT_MODE key-spec param-spec)
       (.doFinal cipher ba-encrypted-content))))
 
+(deftype SymmetricCipherKit-chacha20-poly1305-v1
+  [^int key-len ^int iv-len]
+
+  ISymmetricCipherKit
+  (sck-kid      [_] :chacha20-poly1305-v1)
+  (sck-can-aad? [_] true)
+  (sck-key-len  [_] key-len)
+  (sck-iv-len   [_] iv-len)
+  (sck-encrypt  [_ ba-iv ba-key ba-content ?ba-aad]
+    (let [cipher     (as-symmetric-cipher :chacha20-poly1305)
+          ba-key     (bytes/ba->sublen key-len ba-key)
+          ba-iv      (bytes/ba->sublen iv-len  ba-iv)
+          key-spec   (javax.crypto.spec.SecretKeySpec. ba-key "ChaCha20")
+          param-spec (javax.crypto.spec.IvParameterSpec. ba-iv)]
+
+      (.init cipher javax.crypto.Cipher/ENCRYPT_MODE key-spec param-spec)
+      (when-let [^bytes ba-aad ?ba-aad] (.updateAAD cipher ba-aad))
+
+      (.doFinal cipher ba-content)))
+
+  (sck-decrypt [_ ba-iv ba-key ba-encrypted-content ?ba-aad]
+    (let [cipher     (as-symmetric-cipher :chacha20-poly1305)
+          ba-key     (bytes/ba->sublen key-len ba-key)
+          ba-iv      (bytes/ba->sublen iv-len  ba-iv)
+          key-spec   (javax.crypto.spec.SecretKeySpec. ba-key "ChaCha20")
+          param-spec (javax.crypto.spec.IvParameterSpec. ba-iv)]
+
+      (when (< (enc/java-version) 21)
+        ;; Java <21 cipher has a bug that prevents sequential reuse of the same IV even when
+        ;; decrypting. That unintentionally prevents legitimate use cases like decrypting right after
+        ;; encrypting, etc. We work around this when necessary by first doing a dummy init with a
+        ;; unique (bit-flipped) IV. Ref. <https://bugs.openjdk.org/browse/JDK-8305091>
+        (let [dummy-ba-iv      (doto (aclone ba-iv) (aset-byte 0 (bit-flip (aget ba-iv 0) 0)))
+              dummy-param-spec (javax.crypto.spec.IvParameterSpec. dummy-ba-iv)]
+          (.init cipher javax.crypto.Cipher/DECRYPT_MODE key-spec dummy-param-spec)))
+
+      (.init cipher javax.crypto.Cipher/DECRYPT_MODE key-spec param-spec)
+      (when-let [^bytes ba-aad ?ba-aad] (.updateAAD cipher ba-aad))
+
+      (.doFinal cipher ba-encrypted-content))))
+
 (let [;; Ref. NIST SP800-38D §5.2.1.1 for params
       sck-aes-gcm-128-v1 (SymmetricCipherKit-aes-gcm-v1. 16 12 128)
       sck-aes-gcm-192-v1 (SymmetricCipherKit-aes-gcm-v1. 24 12 128)
@@ -366,17 +409,19 @@
 
       sck-aes-cbc-128-v1-deprecated (SymmetricCipherKit-aes-cbc-v1-deprecated. 16 16)
       sck-aes-cbc-256-v1-deprecated (SymmetricCipherKit-aes-cbc-v1-deprecated. 32 16)
+      sck-chacha20-poly1305-v1      (SymmetricCipherKit-chacha20-poly1305-v1.  32 12) ; 256 bit only
 
       expected
       #{:aes-gcm-128-v1
         :aes-gcm-192-v1
         :aes-gcm-256-v1
         :aes-cbc-128-v1-deprecated
-        :aes-cbc-256-v1-deprecated}]
+        :aes-cbc-256-v1-deprecated
+        :chacha20-poly1305-v1}]
 
   (defn as-symmetric-cipher-kit
     "Returns `ISymmetricCipherKit` implementer, or throws.
-    Takes `sym-cipher-algo` ∈ #{:aes-gcm-<nbits>-v1 :aes-cbc-<nbits>-v1-deprecated}."
+    Takes `sym-cipher-algo` ∈ #{:aes-gcm-<nbits>-v1 :aes-cbc-<nbits>-v1-deprecated :chacha20-poly1305}."
     [sym-cipher-algo]
     (if (keyword? sym-cipher-algo)
       (case       sym-cipher-algo
@@ -386,6 +431,8 @@
 
         :aes-cbc-128-v1-deprecated sck-aes-cbc-128-v1-deprecated
         :aes-cbc-256-v1-deprecated sck-aes-cbc-256-v1-deprecated
+
+        :chacha20-poly1305-v1      sck-chacha20-poly1305-v1
 
         (enc/unexpected-arg! sym-cipher-algo
           {:expected expected

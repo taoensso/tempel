@@ -62,7 +62,8 @@
              1 :aes-gcm-128-v1
              2 :aes-gcm-256-v1
              3 :aes-cbc-128-v1-deprecated
-             4 :aes-cbc-256-v1-deprecated})
+             4 :aes-cbc-256-v1-deprecated
+             5 :chacha20-poly1305-v1})
 
           (+entries :asym-cipher-algo
             {; 0 nil
