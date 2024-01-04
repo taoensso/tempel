@@ -623,8 +623,8 @@
                (is= (dec (enc ba-cnt kc1 {:ba-aad ba-aad
                                           :ba-akm ba-akm}) kc1 {:ba-akm ba-akm }) {:cnt cnt, :aad "aad"} "+AKM, +AAD")
 
-               (is= (dec (enc ba-cnt kc1 {              }) kc2 {               }) {:err #{"Decryption error" "Message is larger than modulus"}} "Bad key")
-               (is= (dec (enc ba-cnt kc1 {:ba-akm ba-akm}) kc1 {:ba-akm ba-!akm}) {:err "Unexpected HMAC" #_"Tag mismatch"}                     "Bad AKM")
+               (is= (dec (enc ba-cnt kc1 {              }) kc2 {               }) {:err #{"Decryption error" "Message is larger than modulus" "Padding error in decryption"}} "Bad key")
+               (is= (dec (enc ba-cnt kc1 {:ba-akm ba-akm}) kc1 {:ba-akm ba-!akm}) {:err "Unexpected HMAC" #_"Tag mismatch"}                                                   "Bad AKM")
 
                (is= (pd  (enc ba-cnt kc1 {              })) {:kind :encrypted-with-1-keypair, :key-algo :rsa-1024, :key-id "a"            } "Public data")
                (is= (pd  (enc ba-cnt kc1 {:ba-aad ba-aad})) {:kind :encrypted-with-1-keypair, :key-algo :rsa-1024, :key-id "a", :aad "aad"} "Public data +AAD")
