@@ -421,7 +421,7 @@
 
   (defn as-symmetric-cipher-kit
     "Returns `ISymmetricCipherKit` implementer, or throws.
-    Takes `sym-cipher-algo` ∈ #{:aes-gcm-<nbits>-v1 :aes-cbc-<nbits>-v1-deprecated :chacha20-poly1305}."
+    Takes `sym-cipher-algo` ∈ #{:aes-gcm-<nbits>-v1 :aes-cbc-<nbits>-v1-deprecated :chacha20-poly1305-v1}."
     [sym-cipher-algo]
     (if (keyword? sym-cipher-algo)
       (case       sym-cipher-algo
