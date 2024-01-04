@@ -8,7 +8,7 @@
    :url  "https://www.eclipse.org/legal/epl-v10.html"}
 
   :dependencies
-  [[com.taoensso/encore "3.74.0"]]
+  [[com.taoensso/encore "3.76.0"]]
 
   :profiles
   {;; :default [:base :system :user :provided :dev]
