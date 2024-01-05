@@ -11,7 +11,7 @@ It incorporates **best practices and reasonable defaults** to help simplify many
 
 ## Latest release/s
 
-- `2023-11-13` `1.0.0-alpha1`: [release notes](../../releases/tag/v1.0.0-alpha1)
+- `2024-02-01` `1.0.0-beta1`: [release notes](../../releases/tag/v1.0.0-beta1)
 
 [![Main tests][Main tests SVG]][Main tests URL]
 [![Graal tests][Graal tests SVG]][Graal tests URL]
@@ -35,14 +35,14 @@ Note that Tempel is [not intended](../../wiki/3-Faq#can-i-decrypt-tempel-data-wi
 
 Tempel has a fixed scope, and is **fully complete**. I'm happy with its design and implementation, and believe it meets all its objectives in its current form. I'm not anticipating significant changes.
 
-Still, given the sensitivity of the problem domain, I plan to approach Tempel's official stable release as a phased rollout to allow time for user feedback before locking things down:
+Still, given the sensitivity of the problem domain, I plan to approach Tempel's official stable release as a phased rollout to allow time for feedback before locking things down:
 
 | Phase | Date    | Release       | Appropriate for
 | :-:   | :--     | :--           | :--
-|  ➤    | 2023-11 | `v1.0-alpha`  | Dev/testing with disposable data
-|       | 2024-01 | `v1.0-beta`   | Dev/testing with disposable data
+|       | 2023-11 | `v1.0-alpha`  | Dev/testing with disposable data
+|  ➤    | 2024-02 | `v1.0-beta`   | Dev/testing with disposable data
 |       | 2024-03 | `v1.0-RC`     | Staging, with ephemeral or low-value data
-|       | 2024-05 | `v1.0` final  | Production, with real data
+|       | 2024-06 | `v1.0` final  | Production, with real data
 
 `v1.0` final will be considered "**done**"- the library is expected to need+see only minimal maintance from that point.
 

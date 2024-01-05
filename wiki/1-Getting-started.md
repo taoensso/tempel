@@ -67,14 +67,14 @@ In many cases, asymmetric encryption schemes will also use symmetric encryption.
 
 ## Challenges
 
-Working with encryption can be tough. Some of the challenges include:
+Working with encryption can be tough. Some of the most stressful and error-prone challenges in practice include:
 
-- Understanding **what keys you'll need** (key algorithms, parameters, etc.)
-- Understanding how **the various algorithms/schemes fit together** (e.g. when and how to use hybrid schemes)
-- Managing keys (changing algorithms or parameters, rotating keys, etc.)
-- Doing all the above without introducing vulnerabilities
+- Understanding **what keys you'll need** (algorithms, parameters, etc.).
+- Understanding how **the various algorithms/schemes fit together** (when and how to use hybrid schemes, etc.).
+- **Managing keys** (keeping algorithms and parameters up-to-date, rotating keys, etc.).
+- Doing all the above without introducing vulnerabilities, and without being dragged into a rat's nest of complexity irrelevant to your application.
 
-Tempel was designed to try help with each of these. Its API is **task oriented**, and tries to shield non-experts from unnecessary implementation details.
+Tempel was designed to try help with each of these.
 
 ## Keychains
 

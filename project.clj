@@ -1,4 +1,4 @@
-(defproject com.taoensso/tempel "1.0.0-alpha1"
+(defproject com.taoensso/tempel "1.0.0-beta1"
   :author "Peter Taoussanis <https://www.taoensso.com>"
   :description "Data security framework for Clojure"
   :url "https://github.com/taoensso/tempel"
