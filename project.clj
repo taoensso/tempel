@@ -34,17 +34,17 @@
     :aot [taoensso.graal-tests]
     :uberjar-name "graal-tests.jar"}
 
-   :dev
-   [:c1.11 :test
-    {:jvm-opts ["-server"]
-     :plugins
-     [[lein-pprint  "1.3.2"]
-      [lein-ancient "0.7.0"]
-      [com.taoensso.forks/lein-codox "0.10.10"]]
+   :dev [:c1.11 :test :dev+]
+   :dev+
+   {:jvm-opts ["-server"]
+    :plugins
+    [[lein-pprint  "1.3.2"]
+     [lein-ancient "0.7.0"]
+     [com.taoensso.forks/lein-codox "0.10.10"]]
 
-     :codox
-     {:language #{:clojure #_:clojurescript}
-      :base-language :clojure}}]}
+    :codox
+    {:language #{:clojure #_:clojurescript}
+     :base-language :clojure}}}
 
   :test-paths ["test" #_"src"]
 
