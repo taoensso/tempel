@@ -10,11 +10,11 @@ This project uses [**Break Versioning**](https://www.taoensso.com/break-versioni
 
 ## Changes since `v1.0.0-alpha1`
 
-* b38da78 [mod] Rename {:return :as-map} -> {:return :map}
+* 1931c7d [mod] Rename {:return :as-map} -> {:return :map}
 
 ## New since `v1.0.0-alpha1`
 
-* 674c849 [new] [#1] [#2] Add ChaCha20-Poly1305 AEAD cipher (@iarenaza)
+* 1e1fdbd [new] [#1] [#2] Add ChaCha20-Poly1305 AEAD cipher (@iarenaza)
 
 ---
 

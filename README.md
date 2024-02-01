@@ -11,7 +11,7 @@ It incorporates **best practices and reasonable defaults** to help simplify many
 
 ## Latest release/s
 
-- `2024-02-01` `1.0.0-beta1`: [release notes](../../releases/tag/v1.0.0-beta1)
+- `2024-02-01` `v1.0.0-beta1`: [release notes](../../releases/tag/v1.0.0-beta1)
 
 [![Main tests][Main tests SVG]][Main tests URL]
 [![Graal tests][Graal tests SVG]][Graal tests URL]
