@@ -28,11 +28,13 @@
     [[org.clojure/test.check "1.1.1"]]}
 
    :graal-tests
-   {:dependencies [[org.clojure/clojure "1.11.1"]
-                   [com.github.clj-easy/graal-build-time "1.0.5"]]
+   {:source-paths ["test"]
     :main taoensso.graal-tests
     :aot [taoensso.graal-tests]
-    :uberjar-name "graal-tests.jar"}
+    :uberjar-name "graal-tests.jar"
+    :dependencies
+    [[org.clojure/clojure                  "1.11.1"]
+     [com.github.clj-easy/graal-build-time "1.0.5"]]}
 
    :dev [:c1.11 :test :dev+]
    :dev+
