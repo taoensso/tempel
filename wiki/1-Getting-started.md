@@ -61,7 +61,7 @@ There's broadly two kinds of encryption to be aware of:
 
 1. [⧉ Symmetric encryption](https://en.wikipedia.org/wiki/Symmetric-key_algorithm) is the easiest to understand and is just like using a password. The *same* secret "**symmetric key**" will be used for both encryption *and* decryption (hence the term "symmetric"). The most common symmetric algorithm is [⧉ AES](https://en.wikipedia.org/wiki/Advanced_Encryption_Standard).
    
-2. [⧉ Asymmetric encryption](https://en.wikipedia.org/wiki/Public-key_cryptography) (or "public-key" encryption) is more complex, but also supports a wider range of situations. Asymmetric encryption uses "key pairs". A **key pair** consists of two *different but related* keys (hence the term "asymmetric"): one secret "**private key**", and one related "**public key**" that's generally safe to share (i.e. not secret). Some common asymmetric algorithms are [⧉ RSA](https://en.wikipedia.org/wiki/RSA_(algorithm)) and [⧉ Diffie-Hellman key exchange](https://en.wikipedia.org/wiki/Diffie%E2%80%93Hellman_key_exchange).
+2. [⧉ Asymmetric encryption](https://en.wikipedia.org/wiki/Public-key_cryptography) (or "public-key" encryption) is more complex, but also supports a wider range of situations. Asymmetric encryption uses "keypairs". A **keypair** consists of two *different but related* keys (hence the term "asymmetric"): one secret "**private key**", and one related "**public key**" that's generally safe to share (i.e. not secret). Some common asymmetric algorithms are [⧉ RSA](https://en.wikipedia.org/wiki/RSA_(algorithm)) and [⧉ Diffie-Hellman key exchange](https://en.wikipedia.org/wiki/Diffie%E2%80%93Hellman_key_exchange).
 
 In many cases, asymmetric encryption schemes will also use symmetric encryption. These "**hybrid schemes**" will generally use asymmetric techniques to safely exchange a **symmetric key** between parties. Further communications can then safely be done via symmetric encryption (which is usually simpler and faster).
 
@@ -71,18 +71,20 @@ Working with encryption can be tough. Some of the most stressful and error-prone
 
 - Understanding **what keys you'll need** (algorithms, parameters, etc.).
 - Understanding how **the various algorithms/schemes fit together** (when and how to use hybrid schemes, etc.).
-- **Managing keys** (keeping algorithms and parameters up-to-date, rotating keys, etc.).
-- Doing all the above without introducing vulnerabilities, and without being dragged into a rat's nest of complexity irrelevant to your application.
+- **Maintaining best-practices over time** (e.g. auto migrating from compromised algorithms, auto incrementing work factors, etc.).
+- **Key management** (key rotation, password resets, admin backups, etc.).
 
-Tempel was designed to try help with each of these.
+Many of these can be **tough to get right** - needing non-trivial understanding, experience, and effort. And getting even one thing wrong can mean **compromised or completely inaccessible data**.
+
+Tempel was designed to try help with each of these, letting you **focus on your application** - not on the rat's nest of becoming a security expert.
 
 ## Keychains
 
 As mentioned in the [quick intro](#quick-intro), encryption means **keys**. You'll need various kinds of keys to interact with Tempel's API.
 
-But instead of bogging you down with details, Tempel uses a concept called "**key chains**".
+But instead of bogging you down with details, Tempel uses a concept called "**keychains**".
 
-Analogous to physical key chains, these are Clojure objects that hold 0 or more keys of various types for various purposes.
+Analogous to physical keychains, these are Clojure objects that hold 0 or more keys of various types for various purposes.
 
 Tempel `KeyChain`s:
 
@@ -124,8 +126,8 @@ Deref a `KeyChain` to get detailed info about it:
 Note that Alice's `KeyChain` contains:
 
 - 1x 256 bit symmetric key
-- 1x 3072 bit RSA key pair (private + public)
-- 1x 3072 but DH  key pair (private + public)
+- 1x 3072 bit RSA keypair (private + public)
+- 1x 3072 but DH  keypair (private + public)
 
 It's not important to understand yet what any of that means. These are reasonable defaults that'll work well together to support the entire Tempel API. Each key/pair was randomly and securely generated when we called `tempel/keychain`, based on the options present in `tempel/*config*`.
 
@@ -163,14 +165,51 @@ Equality works as you'd expect for `KeyChain`s:
   alice-keychain) ; => true
 ```
 
+## API overview
+
+Tempel's API is small, easy to use, easy to browse, and has extensive beginner-oriented docstrings.  It includes:
+
+### Keychain basics
+
+`KeyChain`s are the main way you'll interact with the rest of Tempel's API:
+
+Function | Use to
+-- | --
+[`keychain`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-keychain) | Create a new `KeyChain`, default opts are reasonable.
+[`keychain-encrypt`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-keychain-encrypt) | Encrypt a `KeyChain` (with password, byte[], or another `KeyChain`).
+[`keychain-decrypt`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-keychain-decrypt) | Decrypt a `KeyChain` (with password, byte[], or another `KeyChain`).
+
+- You'll usually have 1 `KeyChain` per user: created and encrypted on sign-up, then decrypted on log-in and retained while the user remains logged in.
+- Deref a `KeyChain` to see its contents.
+- The default `keychain` options will return a `KeyChain` that includes all the keys necessary to fully support Tempel's entire API.
+
+### Data protection
+
+Function | Complement | Use to
+---- | ---- | ----
+[`encrypt-with-password`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-encrypt-with-password) | [`decrypt-with-password`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-decrypt-with-password) | Encrypt & decrypt data with the same password.
+[`encrypt-with-symmetric-key`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-encrypt-with-symmetric-key) | [`decrypt-with-symmetric-key`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-decrypt-with-symmetric-key) | Encrypt & decrypt data with the same `KeyChain` or byte[].
+[`encrypt-with-1-keypair`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-encrypt-with-1-keypair) | [`decrypt-with-1-keypair`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-encrypt-with-1-keypair) | Encrypt data with recipient's public `KeyChain`. Only the recipient can decrypt.
+[`encrypt-with-2-keypairs`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-encrypt-with-2-keypairs) | [`decrypt-with-2-keypairs`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-encrypt-with-2-keypairs) | Encrypt data with sender's private `KeyChain` and recipient's public `KeyChain`. Either party can decrypt.
+[`sign`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-sign) | [`signed`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-signed) | Sign data, and verify signed data. Useful for proving ownership, detecting tampering, etc.
+
+### Supporting utils
+
+Miscellaneous stuff that's used less frequently:
+
+Function | Use to
+-- | --
+[`public-data`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-public-data) | Return any public (unencrypted) data associated with encrypted data.
+[`keychain-add-symmetric-key`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-keychain-add-symmetric-key) | Add symmetric key/s to a `KeyChain`.
+[`keychain-add-asymmetric-keypair`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-keychain-add-asymmetric-keypair) | Add asymmetric keypair/s to a `KeyChain`.
+[`keychain-remove`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-keychain-remove) | Remove key/s from a `KeyChain`.
+[`keychain-update-priority`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-keychain-update-priority) | Update priority of key/s in a `KeyChain`.
+
+- Manual keychain management is rarely needed in practice, but useful when you need it!
+- See [`aad-help`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-aad-help) for info about Tempel's "Additional Authenticated Data" (AAD) support.
+- See [`akm-help`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-akm-help) for info about Tempel's "Additional Keying Material" (AKM) support.
+- See [`*config*`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-*config*) for info about Tempel's global config options.
+
 ## What next
 
-So now that we have one or more `KeyChain`s, what can we do with them?
-
-See the [examples](./2-Examples) for task-oriented ideas, and/or check the extensive docstrings of Tempel's main API functions:
-
-- [`encrypt-with-password`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-encrypt-with-password)
-- [`encrypt-with-symmetric-key`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-encrypt-with-symmetric-key)
-- [`encrypt-with-1-keypair`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-encrypt-with-1-keypair)
-- [`encrypt-with-2-keypairs`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-encrypt-with-2-keypairs)
-- [`sign`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-sign)
+See the [examples](./2-Examples) for task-oriented ideas!

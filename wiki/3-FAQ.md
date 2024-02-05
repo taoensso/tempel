@@ -4,7 +4,7 @@
 
 Tempel presumes that you'll do both encryption and decryption *using Tempel*, with **Clojure on the JVM**.
 
-This limitation allows Tempel to implement unique features and keep its API and codebase small and simple.
+This limitation is a **conscious choice** to enable unique benefits. For example: Tempel's encrypted payloads contain information about the encryption algorithms and parameters used. This enables the **automatic selection of keys** in keychains, and enables **automatic and backwards-compatible algorithm and parameter upgrades over time**.
 
 # How secure is Tempel?
 

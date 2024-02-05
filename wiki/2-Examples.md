@@ -226,33 +226,9 @@ Performance tip: when using this approach, make sure to use a random byte[] key 
   )
 ```
 
-# Key management
-
-Tempel includes the following utils for basic key management:
-
-- [`keychain-add-symmetric-key`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-keychain-add-symmetric-key)
-- [`keychain-add-asymmetric-keypair`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-keychain-add-asymmetric-keypair)
-- [`keychain-remove`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-keychain-remove)
-- [`keychain-update-priority`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-keychain-update-priority)
-- [`keychain-normalize-priorities`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-keychain-normalize-priorities)
-
-These should cover the most common needs. More advanced key management can quickly become a complex topic and is beyond the scope of Tempel's built-in API or these docs.
-
 # Encryption
 
-Tempel's main API functions are easy to browse, easy to use, and have extensive docstrings:
-
-- Functions to encrypt data begin with `encrypt-`
-- Functions to decrypt data begin with `decrypt-`
-
-A quick overview:
-
-Encrypt with | Decrypt with | Common use
--- | -- | --
-[`encrypt-with-password`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-encrypt-with-password) | [`decrypt-with-password`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-decrypt-with-password) | Encrypt & decrypt data with the same password.
-[`encrypt-with-symmetric-key`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-encrypt-with-symmetric-key) | [`decrypt-with-symmetric-key`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-decrypt-with-symmetric-key) | Encrypt & decrypt data with the same `KeyChain` or byte[].
-[`encrypt-with-1-keypair`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-encrypt-with-1-keypair) | [`decrypt-with-1-keypair`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-encrypt-with-1-keypair) | Encrypt data with recipient's public `KeyChain`. Only the recipient can decrypt.
-[`encrypt-with-2-keypairs`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-encrypt-with-2-keypairs) | [`decrypt-with-2-keypairs`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-encrypt-with-2-keypairs) | Encrypt data with sender's private `KeyChain` and recipient's public `KeyChain`. Either party can decrypt.
+See [here](./1-Getting-started#data-protection) for an overview of Tempel's data protection API.
 
 ## Symmetric
 
@@ -287,6 +263,7 @@ Using [`encrypt-with-symmetric-key`](https://taoensso.github.io/tempel/taoensso.
 ```
 
 ## Asymmetric
+
 ### Send secret message to user
 
 Example use case: allow users to submit a bug report, ensuring that it's viewable only by the intended recipient (e.g. engineering department).

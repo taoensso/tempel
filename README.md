@@ -5,9 +5,11 @@
 
 ### Data security framework for Clojure
 
-**Tempel** is a lightweight encryption framework that wraps the JVM's native crypto facilities to provide a **high-level Clojure API** that is: idiomatic, simple, and **easy-to-use** even for non-experts.
+**Tempel** is a lightweight encryption *framework* that wraps the JVM's native crypto facilities to provide a **particularly high-level Clojure API** for easily protecting your users' data.
 
-It incorporates **best practices and reasonable defaults** to help simplify many common data security needs.
+More than another collection of crypto utils, Tempel offers a **coherent and opinionated API for secure data management** and is focused on helping you with the [toughest parts](../../wiki/1-Getting-started#challenges) of actually **using encryption in practice**.
+
+Its [tiny API](../../wiki/1-Getting-started#api-overview) and focus on **smart keychains** helps shield you from unnecessary and error-prone complexity, greatly simplifying the most common data security needs.
 
 ## Latest release/s
 
@@ -33,7 +35,7 @@ Note that Tempel is [not intended](../../wiki/3-Faq#can-i-decrypt-tempel-data-wi
 
 ## Roadmap
 
-Tempel has a fixed scope, and is **fully complete**. I'm happy with its design and implementation, and believe it meets all its objectives in its current form. I'm not anticipating significant changes.
+Tempel has a **fixed scope**, and is **fully complete**. I'm happy with its design and implementation, and believe it meets all its objectives in its current form. I'm not anticipating significant changes.
 
 Still, given the sensitivity of the problem domain, I plan to approach Tempel's official stable release as a phased rollout to allow time for feedback before locking things down:
 
