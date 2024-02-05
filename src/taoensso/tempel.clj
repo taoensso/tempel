@@ -79,8 +79,8 @@
   keys/keychain-normalize-priorities
   keys/keychain-remove
 
-  #_{:alias encrypt-keychain, :src keychain-encrypt, :doc "Alias for `keychain-encrypt`"}
-  #_{:alias decrypt-keychain, :src keychain-decrypt, :doc "Alias for `keychain-decrypt`"})
+  {:alias encrypt-keychain, :src keychain-encrypt, #_:doc #_"Alias for `keychain-encrypt`"}
+  {:alias decrypt-keychain, :src keychain-decrypt, #_:doc #_"Alias for `keychain-decrypt`"})
 
 ;;;; Doc vars
 
