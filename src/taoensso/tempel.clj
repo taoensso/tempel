@@ -2,7 +2,7 @@
   "Data security framework for Clojure.
 
   See the GitHub page (esp. Wiki) for info on motivation and design:
-    <https://github.com/taoensso/tempel>
+    <https://www.taoensso.com/tempel>
 
   See `df.clj` for data formats.
   All formats intended to support non-breaking future updates.
@@ -89,7 +89,7 @@
   may be provided to many of Tempel's API functions (e.g. `encrypt-with-X` when
   using an AEAD cipher).
 
-  When so provided, AAD will be embedded *UNENCRYPTED* with the API function's
+  When provided, AAD will be embedded *UNENCRYPTED* with the API function's
   output byte[].
 
   It may then later be retrieved:
@@ -107,7 +107,7 @@
     - A description of the encrypted content
     - File or data integrity checks (hashes, etc.)
     - Cryptographic signatures
-    - Arbitrary Clojure data via Nippy, Ref. <https://github.com/taoensso/nippy>"
+    - Arbitrary Clojure data via Nippy, Ref. <https://www.taoensso.com/nippy>"
 
   "See docstring")
 
@@ -115,7 +115,7 @@
   "\"Additional Keying Material\" (AKM) is optional arbitrary byte[] data that
   may be provided to many of Tempel's API functions (e.g. `encrypt-with-X`).
 
-  When so provided, AKM will act as additional secret material to supplement any
+  When provided, AKM will act as additional secret material to supplement any
   main cryptographic keys, and so enhance security through increased resistance
   to certain types of attacks, etc.
 
@@ -130,7 +130,7 @@
     - Key derivation parameters
     - Protocol-specific values
     - Security credentials or certificates
-    - Arbitrary Clojure data via Nippy, Ref. <https://github.com/taoensso/nippy>"
+    - Arbitrary Clojure data via Nippy, Ref. <https://www.taoensso.com/nippy>"
 
   ;; Ref. NIST SP 800-56A §5.9.1 to §5.9.3 for SKM/AKM
 
@@ -299,8 +299,8 @@
 
 (defn ^:no-doc get-opts+
   "Implementation detail."
-  ([     opts] (enc/merge *config* opts))
-  ([base opts] (enc/merge base     opts)))
+  ([     opts] (enc/fast-merge *config* opts))
+  ([base opts] (enc/fast-merge base     opts)))
 
 (comment (get-opts+ {} {:a :A}))
 

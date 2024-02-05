@@ -876,7 +876,7 @@
          nil recvr-cks-pub sendr-cks-prv)
 
        (throw
-         (ex-info "No matching asymmetric key pairs available for key agreement via given args"
+         (ex-info "No matching asymmetric keypairs available for key agreement via given args"
            {:given-types
             {:receiver-key-pub (type receiver-x-pub)
              :sender-key-prv   (type sender-x-prv)}
@@ -908,7 +908,7 @@
 
        (throw
          (ex-info
-           (format "No matching asymmetric `%s` key pairs available for key agreement via given args" key-algo)
+           (format "No matching asymmetric `%s` keypairs available for key agreement via given args" key-algo)
            {:given-types
             {:receiver-key-prv (type receiver-x-prv)
              :sender-key-pub   (type sender-x-pub)}

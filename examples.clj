@@ -1,11 +1,11 @@
-(ns my-examples
+(ns examples
   "Some basic Tempel usage examples.
   These are meant to be illustrative rather than complete."
   (:require
    [taoensso.tempel :as tempel]
    [taoensso.nippy  :as nippy]))
 
-(comment (remove-ns 'my-examples))
+(comment (remove-ns 'examples))
 
 ;;;; Basic `KeyChain` usage
 
