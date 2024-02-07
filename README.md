@@ -33,6 +33,19 @@ See [here][GitHub releases] for earlier releases.
 
 Note that Tempel is [not intended](../../wiki/3-Faq#can-i-decrypt-tempel-data-with-other-tools) for interop with other cryptographic tools/APIs.
 
+## Video demo
+
+See for  intro and usage:
+
+<a href="https://www.youtube.com/watch?v=sULZVFhR848" target="_blank">
+ <img src="https://img.youtube.com/vi/sULZVFhR848/maxresdefault.jpg" alt="Tempel demo video" width="640" border="0" />
+</a>
+
+## Documentation
+
+- [Wiki][GitHub wiki] (getting started, usage, etc.)
+- API reference: [Codox][Codox docs], [clj-doc][clj-doc docs]
+
 ## Roadmap
 
 Tempel has a **fixed scope**, and is **fully complete**. I'm happy with its design and implementation, and believe it meets all its objectives in its current form. I'm not anticipating significant changes.
@@ -59,11 +72,6 @@ Please be **very careful** evaluating Tempel and/or other cryptographic librarie
 ## Security
 
 See [here](../../security) for **security advisories** and/or to **report security vulnerabilities**.
-
-## Documentation
-
-- [Wiki][GitHub wiki] (getting started, usage, etc.)
-- API reference: [Codox][Codox docs], [clj-doc][clj-doc docs]
 
 ## Funding
 
