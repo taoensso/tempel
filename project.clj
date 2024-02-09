@@ -1,11 +1,13 @@
 (defproject com.taoensso/tempel "1.0.0-beta1"
   :author "Peter Taoussanis <https://www.taoensso.com>"
   :description "Data security framework for Clojure"
-  :url "https://github.com/taoensso/tempel"
+  :url "https://www.taoensso.com/tempel"
 
   :license
   {:name "Eclipse Public License - v 1.0"
    :url  "https://www.eclipse.org/legal/epl-v10.html"}
+
+  :test-paths ["test" #_"src"]
 
   :dependencies
   [[com.taoensso/encore "3.76.0"]]
@@ -17,16 +19,6 @@
    :c1.10    {:dependencies [[org.clojure/clojure "1.10.1"]]}
    :c1.9     {:dependencies [[org.clojure/clojure "1.9.0"]]}
 
-   :test
-   {:jvm-opts ["-Dtaoensso.elide-deprecated=true"]
-    :global-vars
-    {*warn-on-reflection* true
-     *assert*             true
-     *unchecked-math*     false #_:warn-on-boxed}
-
-    :dependencies
-    [[org.clojure/test.check "1.1.1"]]}
-
    :graal-tests
    {:source-paths ["test"]
     :main taoensso.graal-tests
@@ -36,19 +28,25 @@
     [[org.clojure/clojure                  "1.11.1"]
      [com.github.clj-easy/graal-build-time "1.0.5"]]}
 
-   :dev [:c1.11 :test :dev+]
-   :dev+
-   {:jvm-opts ["-server"]
+   :dev
+   {:jvm-opts ["-server" "-Dtaoensso.elide-deprecated=true"]
+
+    :global-vars
+    {*warn-on-reflection* true
+     *assert*             true
+     *unchecked-math*     false #_:warn-on-boxed}
+
+    :dependencies
+    [[org.clojure/test.check "1.1.1"]]
+
     :plugins
     [[lein-pprint  "1.3.2"]
      [lein-ancient "0.7.0"]
-     [com.taoensso.forks/lein-codox "0.10.10"]]
+     [com.taoensso.forks/lein-codox "0.10.11"]]
 
     :codox
     {:language #{:clojure #_:clojurescript}
      :base-language :clojure}}}
-
-  :test-paths ["test" #_"src"]
 
   :aliases
   {"start-dev"     ["with-profile" "+dev" "repl" ":headless"]
