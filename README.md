@@ -13,7 +13,7 @@ Its [tiny API](../../wiki/1-Getting-started#api-overview) and focus on **smart k
 
 ## Latest release/s
 
-- `2024-02-01` `v1.0.0-beta1`: [release notes](../../releases/tag/v1.0.0-beta1)
+- `2024-02-26` `v1.0.0-RC1`: [release notes](../../releases/tag/v1.0.0-RC1)
 
 [![Main tests][Main tests SVG]][Main tests URL]
 [![Graal tests][Graal tests SVG]][Graal tests URL]
@@ -54,10 +54,8 @@ Still, given the sensitivity of the problem domain, I plan to approach Tempel's 
 
 | Phase | Date    | Release       | Appropriate for
 | :-:   | :--     | :--           | :--
-|       | 2023-11 | `v1.0-alpha`  | Dev/testing with disposable data
-|  ➤    | 2024-02 | `v1.0-beta`   | Dev/testing with disposable data
-|       | 2024-03 | `v1.0-RC`     | Staging, with ephemeral or low-value data
-|       | 2024-06 | `v1.0` final  | Production, with real data
+|  ➤   | 2024-02 | `v1.0-RC1`    | Staging, with ephemeral or low-value data
+|       | 2024-05 | `v1.0` final  | Production, with real data
 
 `v1.0` final will be considered "**done**"- the library is expected to need+see only minimal maintance from that point.
 
