@@ -38,7 +38,7 @@
   (remove-ns 'taoensso.tempel)
   (:api (enc/interns-overview)))
 
-(enc/assert-min-encore-version [3 76 0])
+(enc/assert-min-encore-version [3 85 0])
 
 ;;;; TODO
 ;; - Consider including something like Signal's "Double Ratchet" work?
