@@ -13,7 +13,7 @@ Its [tiny API](../../wiki/1-Getting-started#api-overview) and focus on **smart k
 
 ## Latest release/s
 
-- `2024-02-26` `v1.0.0-RC1`: [release notes](../../releases/tag/v1.0.0-RC1)
+- `2024-02-26` `v1.0.0-RC1`: [release info](../../releases/tag/v1.0.0-RC1)
 
 [![Main tests][Main tests SVG]][Main tests URL]
 [![Graal tests][Graal tests SVG]][Graal tests URL]

@@ -1,6 +1,5 @@
 (ns examples
-  "Some basic Tempel usage examples.
-  These are meant to be illustrative rather than complete."
+  "Some basic Tempel usage examples."
   (:require
    [taoensso.tempel :as tempel]
    [taoensso.nippy  :as nippy]))
