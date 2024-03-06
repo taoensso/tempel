@@ -6,6 +6,44 @@
 
 (comment (remove-ns 'examples))
 
+;;;; README quick example
+
+(require
+  '[taoensso.tempel :as tempel]
+  '[taoensso.nippy  :as nippy])
+
+;; Create a new private `KeyChain`:
+(def my-keychain! (tempel/keychain))
+;; => {:n-sym 1, :n-prv 2, :n-pub 2, :secret? true}
+
+;; Use our `KeyChain` to encrypt some data:
+(def my-encrypted-data
+  (tempel/encrypt-with-symmetric-key
+    (nippy/freeze "My secret data")
+    my-keychain!)) ; => Encrypted bytes
+
+;; Get back the original unencrypted data:
+(nippy/thaw
+  (tempel/decrypt-with-symmetric-key
+    my-encrypted-data my-keychain!)) ; => "My secret data"
+
+;; It's safe to store encrypted `KeyChain`s:
+(def my-encrypted-keychain
+  (tempel/encrypt-keychain my-keychain!
+    {:password "My password"})) ; => Encrypted bytes
+
+;; Get back the original unencrypted `KeyChain`:
+(= my-keychain!
+  (tempel/decrypt-keychain my-encrypted-keychain
+    {:password "My password"})) ; => true
+
+;; `KeyChain`s also support:
+;;   - `encrypt-with-1-keypair`
+;;   - `encrypt-with-2-keypairs`
+;;   - `sign`
+
+;; See docstrings and/or wiki for more info!
+
 ;;;; Basic `KeyChain` usage
 
 ;; Let's create a new `KeyChain` object for our user Alice.
