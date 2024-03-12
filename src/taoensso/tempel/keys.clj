@@ -935,7 +935,7 @@
 
     - Unencrypted:
       - Any public keys in keychain (retrieve with `public-data`)
-      - Optional AAD (see `aad-help`)
+      - Optional AAD (see `help:aad`)
       - Envelope data necessary for decryption (specifies algorithms, etc.)
 
   Output can be safely stored (e.g. in a database).
@@ -947,8 +947,8 @@
     `:password`   - String, byte[], or char[]             as with `encrypt-with-password`
     `:key-sym`    - `KeyChain` (see `keychain`) or byte[] as with `encrypt-with-symmetric-key`
 
-    `:ba-aad`     - See `aad-help`
-    `:ba-akm`     - See `akm-help`
+    `:ba-aad`     - See `help:aad`
+    `:ba-akm`     - See `help:akm`
     `:ba-content` - Optional additional byte[] content that should be encrypted
                     and included in output for retrieval with `keychain-decrypt`.
 

@@ -433,7 +433,7 @@ admin-public-keychain
 ;;;; Public data
 
 ;; Tempel has extensive support for "**Additional Authenticated Data**" /
-;; "**Additional Associated Data**", see `aad-help` for details.
+;; "**Additional Associated Data**", see `help:aad` for details.
 
 ;; And see `public-data` for a util that can help identify Tempel output,
 ;; and access public (unencrypted) info embedded in Tempel output.

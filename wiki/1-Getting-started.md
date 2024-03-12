@@ -206,8 +206,8 @@ Function | Use to
 [`keychain-update-priority`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-keychain-update-priority) | Update priority of key/s in a `KeyChain`.
 
 - Manual keychain management is rarely needed in practice, but useful when you need it!
-- See [`aad-help`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-aad-help) for info about Tempel's "Additional Authenticated Data" (AAD) support.
-- See [`akm-help`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-akm-help) for info about Tempel's "Additional Keying Material" (AKM) support.
+- See [`help:aad`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-help.3Aaad) for info about Tempel's "Additional Authenticated Data" (AAD) support.
+- See [`help:akm`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-help.3Aakm) for info about Tempel's "Additional Keying Material" (AKM) support.
 - See [`*config*`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-*config*) for info about Tempel's global config options.
 
 ## What next
