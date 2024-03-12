@@ -10,8 +10,8 @@
   Abbreviations:
     External:
       pbkdf - Password Based Key Derivation Function
-      aad   - Additional Associated Aata (see `aad-help`)
-      akm   - Additional Keying Material (see `akm-help`)
+      aad   - Additional Associated Aata (see `help:aad`)
+      akm   - Additional Keying Material (see `help:akm`)
       kek   - Key encryption key (key used to encrypt another key)
       cnt   - Unencrypted content
       ecnt  - Encrypted   content
@@ -84,7 +84,7 @@
 
 ;;;; Doc vars
 
-(def aad-help
+(def help:aad
   "\"Additional Authenticated Data\" (AAD) is optional arbitrary byte[] data that
   may be provided to many of Tempel's API functions (e.g. `encrypt-with-X` when
   using an AEAD cipher).
@@ -111,7 +111,7 @@
 
   "See docstring")
 
-(def akm-help
+(def help:akm
   "\"Additional Keying Material\" (AKM) is optional arbitrary byte[] data that
   may be provided to many of Tempel's API functions (e.g. `encrypt-with-X`).
 
@@ -212,7 +212,7 @@
     `:sym-cipher-algo` ∈ #{*:aes-gcm-128-v1 :aes-gcm-256-v1 :chacha20-poly1305-v1}
       The symmetric cipher algorithm to use. A cipher that supports \"AEAD\"
       (Authenticated Encryption with Associated Data) must generally be provided
-      in order to use `:ba-aad` options (see `aad-help`).
+      in order to use `:ba-aad` options (see `help:aad`).
 
       Default: `:aes-gcm-128-v1`, a good general-purpose symmetric cipher with
       AEAD support.
@@ -282,7 +282,7 @@
         key/password, *OR* with this optional secondary (backup) `KeyChain`
         (see `keychain`) or `KeyPair` (see `keypair-create`).
 
-        NB: this backup key will be able to decrypt *without* AKM (see `akm-help`).
+        NB: this backup key will be able to decrypt *without* AKM (see `help:akm`).
 
       When decrypting:
         When data was encrypted with support for a backup key, use this
@@ -336,7 +336,7 @@
   (unencrypted) data embedded in the byte[].
 
   Possible keys:
-    `:ba-aad`          - See `aad-help`
+    `:ba-aad`          - See `help:aad`
     `:keychain`        - Public-key part of encrypted `KeyChain`
     `:key-id`          - See `:embed-key-ids?` option of `encrypt-X` API
     `:receiver-key-id` - ''
@@ -481,7 +481,7 @@
   "Uses a symmetric cipher to encrypt the given byte[] content and return
   a byte[] that includes:
     - The encrypted content
-    - Optional unencrypted AAD (see `aad-help`)
+    - Optional unencrypted AAD (see `help:aad`)
     - Envelope data necessary for decryption (specifies algorithms, etc.)
 
   Takes a password (string, byte[], or char[]).
@@ -491,8 +491,8 @@
   Decrypt output with: `decrypt-with-password`.
 
   Options:
-    `:ba-aad` - See `aad-help`
-    `:ba-akm` - See `akm-help`
+    `:ba-aad` - See `help:aad`
+    `:ba-akm` - See `help:akm`
 
     And see `*config*` for details:
       `hash-algo`, `sym-cipher-algo`, `pbkdf-algo`, `pbkdf-nwf`,
@@ -636,15 +636,15 @@
   "Uses a symmetric cipher to encrypt the given byte[] content and return
   a byte[] that includes:
     - The encrypted content
-    - Optional unencrypted AAD (see `aad-help`)
+    - Optional unencrypted AAD (see `help:aad`)
     - Envelope data necessary for decryption (specifies algorithms, etc.)
 
   Takes a `KeyChain` (see `keychain`) or byte[] key.
   Decrypt output with: `decrypt-with-symmetric-key`.
 
   Options:
-    `:ba-aad` - See `aad-help`
-    `:ba-akm` - See `akm-help`
+    `:ba-aad` - See `help:aad`
+    `:ba-akm` - See `help:akm`
 
     And see `*config*` for details:
       `hash-algo`, `sym-cipher-algo`, `embed-key-ids?`,
@@ -783,7 +783,7 @@
   "Uses a symmetric or hybrid (symmetric + asymmetric) scheme to encrypt the
   given content byte[] and return a byte[] that includes:
     - The encrypted content
-    - Optional unencrypted AAD (see `aad-help`)
+    - Optional unencrypted AAD (see `help:aad`)
     - Envelope data necessary for decryption (specifies algorithms, etc.)
 
   Takes a `KeyChain` (see `keychain`) or `KeyPair` (see `keypair-create`).
@@ -796,8 +796,8 @@
   Decrypt output byte[] with: `decrypt-with-1-keypair`.
 
   Options:
-    `:ba-aad` - See `aad-help`
-    `:ba-akm` - See `akm-help`
+    `:ba-aad` - See `help:aad`
+    `:ba-akm` - See `help:akm`
 
     And see `*config*` for details:
       `hash-algo`, `sym-cipher-algo`, `asym-cipher-algo`,
@@ -1043,7 +1043,7 @@
   "Uses a hybrid (symmetric + asymmetric) scheme to encrypt the given content
   byte[] and return a byte[] that includes:
     - The encrypted content
-    - Optional unencrypted AAD (see `aad-help`)
+    - Optional unencrypted AAD (see `help:aad`)
     - Envelope data necessary for decryption (specifies algorithms, etc.)
 
   Takes `KeyChain`s (see `keychain`) and/or `KeyPair`s (see `keypair-create`).
@@ -1061,8 +1061,8 @@
   Decrypt output byte[] with: `decrypt-with-2-keypairs`.
 
   Options:
-    `:ba-aad` - See `aad-help`
-    `:ba-akm` - See `akm-help`
+    `:ba-aad` - See `help:aad`
+    `:ba-akm` - See `help:akm`
 
     And see `*config*` for details:
       `hash-algo`, `ka-algo`, `sym-cipher-algo`,
@@ -1238,7 +1238,7 @@
   "Cryptographically signs the given content byte[] and returns a byte[]
   that includes:
     - Optional unencrypted content (see `embed-content?` option below)
-    - Optional unencrypted AAD     (see `aad-help`)
+    - Optional unencrypted AAD     (see `help:aad`)
     - Envelope data necessary for verification (specifies algorithms, etc.)
 
   Produces:
@@ -1255,8 +1255,8 @@
   Verify with: `signed`.
 
   Options:
-    `:ba-aad`         - See `aad-help`
-    `:ba-akm`         - See `akm-help`
+    `:ba-aad`         - See `help:aad`
+    `:ba-akm`         - See `help:akm`
     `:embed-content?` - See usage info above
 
     And see `*config*` for details:

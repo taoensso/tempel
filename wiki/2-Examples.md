@@ -332,7 +332,7 @@ This is an advanced version of the last example and would require a custom schem
 
 # Public data
 
-Tempel has extensive support for "**Additional Authenticated Data**" / "**Additional Associated Data**", see [`aad-help`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-aad-help) for details.
+Tempel has extensive support for "**Additional Authenticated Data**" / "**Additional Associated Data**", see [`help:aad`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-help.3Aaad) for details.
 
 And see [`public-data`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-public-data) for a util that can help identify Tempel output, and access public (unencrypted) info embedded in Tempel output.
 

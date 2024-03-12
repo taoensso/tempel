@@ -100,4 +100,4 @@ These include things like:
 - Long-term *key management*.
 - Long-term *maintenance of algorithms and parameters* (scaling work factors and/or adjusting algorithms to keep up with best practice and moving hardware targets over time).
 - A consistent and easy-to-use API for *encrypting data with backup keys* so that it's always possible to reset a user's password, even when the user's data is fully encrypted at rest and the user's key is never stored.
-- A consistent and easy-to-use API for [AAD](https://taoensso.github.io/tempel/taoensso.tempel.html#var-aad-help), [AKM](https://taoensso.github.io/tempel/taoensso.tempel.html#var-akm-help), and [extracting public data](https://taoensso.github.io/tempel/taoensso.tempel.html#var-public-data) from encrypted payloads.
+- A consistent and easy-to-use API for [AAD](https://taoensso.github.io/tempel/taoensso.tempel.html#var-help.3Aaad), [AKM](https://taoensso.github.io/tempel/taoensso.tempel.html#var-help.3Aakm), and [extracting public data](https://taoensso.github.io/tempel/taoensso.tempel.html#var-public-data) from encrypted payloads.
