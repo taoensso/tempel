@@ -10,15 +10,14 @@
   :test-paths ["test" #_"src"]
 
   :dependencies
-  [[com.taoensso/encore "3.85.0"]]
+  [[com.taoensso/encore "3.95.1"]]
 
   :profiles
   {;; :default [:base :system :user :provided :dev]
-   :provided {:dependencies [[org.clojure/clojure "1.11.1"]]}
-   :c1.12    {:dependencies [[org.clojure/clojure "1.12.0-alpha8"]]}
-   :c1.11    {:dependencies [[org.clojure/clojure "1.11.1"]]}
-   :c1.10    {:dependencies [[org.clojure/clojure "1.10.1"]]}
-   :c1.9     {:dependencies [[org.clojure/clojure "1.9.0"]]}
+   :provided {:dependencies [[org.clojure/clojure "1.12.3"]]}
+   :c1.12    {:dependencies [[org.clojure/clojure "1.12.3"]]}
+   :c1.11    {:dependencies [[org.clojure/clojure "1.11.4"]]}
+   :c1.10    {:dependencies [[org.clojure/clojure "1.10.3"]]}
 
    :graal-tests
    {:source-paths ["test"]
@@ -54,6 +53,6 @@
    ;; "build-once" ["do" ["clean"] ["cljsbuild" "once"]]
    "deploy-lib"    ["do" #_["build-once"] ["deploy" "clojars"] ["install"]]
 
-   "test-clj"     ["with-profile" "+c1.12:+c1.11:+c1.10:+c1.9" "test"]
+   "test-clj"     ["with-profile" "+c1.12:+c1.11:+c1.10" "test"]
    ;; "test-cljs" ["with-profile" "+c1.12" "cljsbuild"         "test"]
    "test-all"     ["do" ["clean"] ["test-clj"] #_["test-cljs"]]})
