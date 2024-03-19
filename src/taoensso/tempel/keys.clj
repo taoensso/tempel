@@ -70,7 +70,7 @@
   (hashCode [this]       (impl/cnt-hash key-cnt))
   (toString [this]
     (let [m (select-keys @this [:key-algo :symmetric? :private? :public? :secret? :length])]
-      (str "ChainKey[" m " " (enc/ident-hex-str this) "]")))
+      (str "taoensso.tempel.ChainKey[" m " " (enc/ident-hex-str this) "]")))
 
   clojure.lang.IObj
   (meta     [_  ] ?meta)
@@ -88,7 +88,7 @@
 
       (enc/assoc-some {:key-cnt key-cnt} :key-id ?key-id))))
 
-(enc/deftype-print-methods              ChainKey)
+(enc/def-print-impl [ck ChainKey] (str "#" ck))
 (defn ^:public chainkey? [x] (instance? ChainKey x))
 
 (defn- -chainkey [key-type ?key-algo ?needs ?key-id x-key]
@@ -236,7 +236,7 @@
   clojure.lang.IHashEq (hasheq [_] (hash m-keychain))
 
   Object
-  (toString [this] (str "KeyChain[" @m-info_ " " (enc/ident-hex-str this) "]"))
+  (toString [this] (str "taoensso.tempel.KeyChain[" @m-info_ " " (enc/ident-hex-str this) "]"))
   (hashCode [this] (hash m-keychain))
   (equals   [this other] (and (instance? KeyChain other) (= m-keychain (.-m-keychain ^KeyChain other))))
 
@@ -256,7 +256,7 @@
           (when validate? @(.-m-frozen_ ^KeyChain new-kc)) ; Confirm freezable
           new-kc)))))
 
-(enc/deftype-print-methods               KeyChain)
+(enc/def-print-impl [kc KeyChain] (str "#" kc))
 (defn  ^:public keychain? [x] (instance? KeyChain x))
 (defn-         -keychain  [?meta m-keychain]
   (KeyChain.            m-keychain
