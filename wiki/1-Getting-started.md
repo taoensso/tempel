@@ -8,7 +8,7 @@ Please be **very careful** evaluating Tempel and/or other cryptographic librarie
 
 # Setup
 
-Add the [relevant Tempel dependency](../#latest-releases) to your project:
+Add the [relevant dependency](../#latest-releases) to your project:
 
 ```clojure
 Leiningen: [com.taoensso/tempel               "x-y-z"] ; or
@@ -131,7 +131,7 @@ Note that Alice's `KeyChain` contains:
 
 It's not important to understand yet what any of that means. These are reasonable defaults that'll work well together to support the entire Tempel API. Each key/pair was randomly and securely generated when we called `tempel/keychain`, based on the options present in `tempel/*config*`.
 
-`tempel/*config*` is an important var. Its [default value](https://taoensso.github.io/tempel/taoensso.tempel.html#var-default-config) should be reasonable for most users, but it'd be worth at least familiarizing yourself with what's in there. [Its docstring](https://taoensso.github.io/tempel/taoensso.tempel.html#var-*config*) includes extensive documentation.
+`tempel/*config*` is an important var. Its [default value](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#default-config) should be reasonable for most users, but it'd be worth at least familiarizing yourself with what's in there. [Its docstring](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#*config*) includes extensive documentation.
 
 The content of `KeyChain`s can be updated: keys can be added or removed, and key priorities can be adjusted. But for many simple uses you won't need to do any of that under normal circumstances.
 
@@ -173,11 +173,11 @@ Tempel's API is small, easy to use, easy to browse, and has extensive beginner-o
 
 `KeyChain`s are the main way you'll interact with the rest of Tempel's API:
 
-Function | Use to
--- | --
-[`keychain`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-keychain) | Create a new `KeyChain`, default opts are reasonable.
-[`keychain-encrypt`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-keychain-encrypt) | Encrypt a `KeyChain` (with password, byte[], or another `KeyChain`).
-[`keychain-decrypt`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-keychain-decrypt) | Decrypt a `KeyChain` (with password, byte[], or another `KeyChain`).
+| Function                                                                                                    | Use to                                                               |
+| ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| [`keychain`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#keychain)                 | Create a new `KeyChain`, default opts are reasonable.                |
+| [`keychain-encrypt`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#keychain-encrypt) | Encrypt a `KeyChain` (with password, byte[], or another `KeyChain`). |
+| [`keychain-decrypt`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#keychain-decrypt) | Decrypt a `KeyChain` (with password, byte[], or another `KeyChain`). |
 
 - You'll usually have 1 `KeyChain` per user: created and encrypted on sign-up, then decrypted on log-in and retained while the user remains logged in.
 - Deref a `KeyChain` to see its contents.
@@ -185,30 +185,30 @@ Function | Use to
 
 ### Data protection
 
-Function | Complement | Use to
----- | ---- | ----
-[`encrypt-with-password`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-encrypt-with-password) | [`decrypt-with-password`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-decrypt-with-password) | Encrypt & decrypt data with the same password.
-[`encrypt-with-symmetric-key`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-encrypt-with-symmetric-key) | [`decrypt-with-symmetric-key`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-decrypt-with-symmetric-key) | Encrypt & decrypt data with the same `KeyChain` or byte[].
-[`encrypt-with-1-keypair`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-encrypt-with-1-keypair) | [`decrypt-with-1-keypair`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-encrypt-with-1-keypair) | Encrypt data with recipient's public `KeyChain`. Only the recipient can decrypt.
-[`encrypt-with-2-keypairs`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-encrypt-with-2-keypairs) | [`decrypt-with-2-keypairs`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-encrypt-with-2-keypairs) | Encrypt data with sender's private `KeyChain` and recipient's public `KeyChain`. Either party can decrypt.
-[`sign`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-sign) | [`signed`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-signed) | Sign data, and verify signed data. Useful for proving ownership, detecting tampering, etc.
+| Function | Complement | Use to |
+| ---- | ---- | ---- |
+| [`encrypt-with-password`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#encrypt-with-password) | [`decrypt-with-password`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#decrypt-with-password) | Encrypt & decrypt data with the same password.
+| [`encrypt-with-symmetric-key`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#encrypt-with-symmetric-key) | [`decrypt-with-symmetric-key`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#decrypt-with-symmetric-key) | Encrypt & decrypt data with the same `KeyChain` or byte[].
+| [`encrypt-with-1-keypair`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#encrypt-with-1-keypair) | [`decrypt-with-1-keypair`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#encrypt-with-1-keypair) | Encrypt data with recipient's public `KeyChain`. Only the recipient can decrypt.
+| [`encrypt-with-2-keypairs`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#encrypt-with-2-keypairs) | [`decrypt-with-2-keypairs`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#encrypt-with-2-keypairs) | Encrypt data with sender's private `KeyChain` and recipient's public `KeyChain`. Either party can decrypt.
+| [`sign`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#sign) | [`signed`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#signed) | Sign data, and verify signed data. Useful for proving ownership, detecting tampering, etc.
 
 ### Supporting utils
 
 Miscellaneous stuff that's used less frequently:
 
-Function | Use to
--- | --
-[`public-data`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-public-data) | Return any public (unencrypted) data associated with encrypted data.
-[`keychain-add-symmetric-key`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-keychain-add-symmetric-key) | Add symmetric key/s to a `KeyChain`.
-[`keychain-add-asymmetric-keypair`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-keychain-add-asymmetric-keypair) | Add asymmetric keypair/s to a `KeyChain`.
-[`keychain-remove`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-keychain-remove) | Remove key/s from a `KeyChain`.
-[`keychain-update-priority`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-keychain-update-priority) | Update priority of key/s in a `KeyChain`.
+| Function                                                                                                                                  | Use to                                                               |
+| ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| [`public-data`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#public-data)                                         | Return any public (unencrypted) data associated with encrypted data. |
+| [`keychain-add-symmetric-key`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#keychain-add-symmetric-key)           | Add symmetric key/s to a `KeyChain`.                                 |
+| [`keychain-add-asymmetric-keypair`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#keychain-add-asymmetric-keypair) | Add asymmetric keypair/s to a `KeyChain`.                            |
+| [`keychain-remove`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#keychain-remove)                                 | Remove key/s from a `KeyChain`.                                      |
+| [`keychain-update-priority`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#keychain-update-priority)               | Update priority of key/s in a `KeyChain`.                            |
 
 - Manual keychain management is rarely needed in practice, but useful when you need it!
-- See [`help:aad`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-help.3Aaad) for info about Tempel's "Additional Authenticated Data" (AAD) support.
-- See [`help:akm`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-help.3Aakm) for info about Tempel's "Additional Keying Material" (AKM) support.
-- See [`*config*`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-*config*) for info about Tempel's global config options.
+- See [`help:aad`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#help:aad) for info about Tempel's "Additional Authenticated Data" (AAD) support.
+- See [`help:akm`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#help:akm) for info about Tempel's "Additional Keying Material" (AKM) support.
+- See [`*config*`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#*config*) for info about Tempel's global config options.
 
 ## What next
 

@@ -86,7 +86,7 @@
     randomness in Tempel.
 
     (instance-fn) should return a `java.security.SecureRandom` instance."
-    [instance-fn & body] `(binding [*srng* ~instance-fn] ~@body))
+    [instance-fn & body] `(enc/binding [*srng* ~instance-fn] ~@body))
 
   (defmacro ^:public with-srng-insecure-deterministic!!!
     "Evaluates body with *INSECURE* deterministic `java.util.Random` used
