@@ -4,7 +4,7 @@
 
 Tempel presumes that you'll do both encryption and decryption *using Tempel*, with **Clojure on the JVM**.
 
-This limitation is a **conscious choice** to enable unique benefits. For example: Tempel's encrypted payloads contain information about the encryption algorithms and parameters used. This enables the **automatic selection of keys** in keychains, and enables **automatic and backwards-compatible algorithm and parameter upgrades over time**.
+This limitation is a **conscious choice** to enable unique benefits. For example: Tempel's encrypted payloads contain metdata about the encryption algorithms and parameters used. This enables the **automatic selection of keys** in keychains, and enables **automatic and backwards-compatible algorithm and parameter upgrades over time**.
 
 # How secure is Tempel?
 
@@ -100,4 +100,4 @@ These include things like:
 - Long-term *key management*.
 - Long-term *maintenance of algorithms and parameters* (scaling work factors and/or adjusting algorithms to keep up with best practice and moving hardware targets over time).
 - A consistent and easy-to-use API for *encrypting data with backup keys* so that it's always possible to reset a user's password, even when the user's data is fully encrypted at rest and the user's key is never stored.
-- A consistent and easy-to-use API for [AAD](https://taoensso.github.io/tempel/taoensso.tempel.html#var-help.3Aaad), [AKM](https://taoensso.github.io/tempel/taoensso.tempel.html#var-help.3Aakm), and [extracting public data](https://taoensso.github.io/tempel/taoensso.tempel.html#var-public-data) from encrypted payloads.
+- A consistent and easy-to-use API for [AAD](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#help:aad), [AKM](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#help:akm), and [extracting public data](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#public-data) from encrypted payloads.

@@ -4,7 +4,8 @@ This project uses [**Break Versioning**](https://www.taoensso.com/break-versioni
 
 # `v1.0.0-RC1` (2024-02-26)
 
-> 📦 [Available on Clojars](https://clojars.org/com.taoensso/tempel/versions/1.0.0-RC1), this project uses [Break Versioning](https://www.taoensso.com/break-versioning).
+> **Dep/s**: Tempel is [on Clojars](https://clojars.org/com.taoensso/tempel/versions/1.0.0-RC1).  
+> **Versioning**: Tempel uses [Break Versioning](https://www.taoensso.com/break-versioning).
 
 ⚠️ This release is intended for **development/testing** with **ephemeral or low-value data**. Tempel `v1.0` final is expected around [May 2024](https://www.taoensso.com/roadmap).
 

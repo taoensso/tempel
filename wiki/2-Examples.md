@@ -42,7 +42,7 @@ This just means that we want it to take about 2 seconds to transform a password 
 
 Note that it's a handy feature of Tempel to easily support different work factors like this on a per-item basis.
 
-See the `*config*` [docstring](https://taoensso.github.io/tempel/taoensso.tempel.html#var-*config*) for more info on the `:pbkdf-nwf` option, etc.
+See the `*config*` [docstring](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#*config*) for more info on the `:pbkdf-nwf` option, etc.
 
 ## Create user account
 
@@ -234,7 +234,7 @@ See [here](./1-Getting-started#data-protection) for an overview of Tempel's data
 
 Example use case: allow users to encrypt their data so that only they can view or modify it.
 
-Using [`encrypt-with-password`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-encrypt-with-password) and [`decrypt-with-password`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-decrypt-with-password):
+Using [`encrypt-with-password`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#encrypt-with-password) and [`decrypt-with-password`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#decrypt-with-password):
 
 ```clojure
 ;;; Symmetric encryption with a password
@@ -244,7 +244,7 @@ Using [`encrypt-with-password`](https://taoensso.github.io/tempel/taoensso.tempe
   (= (nippy/thaw ba-decrypted) {:my-secret-data? true}))
 ```
 
-Using [`encrypt-with-symmetric-key`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-encrypt-with-symmetric-key) and [`decrypt-with-symmetric-key`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-decrypt-with-symmetric-key):
+Using [`encrypt-with-symmetric-key`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#encrypt-with-symmetric-key) and [`decrypt-with-symmetric-key`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#decrypt-with-symmetric-key):
 
 ```clojure
 ;;; Symmetric encryption with `KeyChain`
@@ -268,7 +268,7 @@ Using [`encrypt-with-symmetric-key`](https://taoensso.github.io/tempel/taoensso.
 
 Example use case: allow users to submit a bug report, ensuring that it's viewable only by the intended recipient (e.g. engineering department).
 
-Using [`encrypt-with-1-keypair`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-encrypt-with-1-keypair) and [`decrypt-with-1-keypair`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-encrypt-with-1-keypair):
+Using [`encrypt-with-1-keypair`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#encrypt-with-1-keypair) and [`decrypt-with-1-keypair`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#encrypt-with-1-keypair):
 
 ```clojure
 (let [alice-secret-keychain (tempel/keychain {}) ; Only Alice will have this
@@ -292,7 +292,7 @@ Example use case: allow 2 users to participate in a private conversation viewabl
 
 This is an example of [⧉ end-to-end](https://en.wikipedia.org/wiki/End-to-end_encryption) (E2EE) encryption.
 
-Using [`encrypt-with-2-keypairs`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-encrypt-with-2-keypairs) and [`decrypt-with-2-keypairs`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-encrypt-with-2-keypairs):
+Using [`encrypt-with-2-keypairs`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#encrypt-with-2-keypairs) and [`decrypt-with-2-keypairs`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#encrypt-with-2-keypairs):
 
 ```clojure
 (let [alice-secret-keychain (tempel/keychain {}) ; Only Alice will have this
@@ -328,14 +328,14 @@ This is an advanced version of the last example and would require a custom schem
 
 - Have 1 user act as the group/room owner.
 - Have the owner generate a random symmetric key for the group/room.
-- Have the owner distribute the shared key to every other user via [`encrypt-with-1-keypair`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-encrypt-with-1-keypair) or [`encrypt-with-2-keypairs`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-encrypt-with-2-keypairs), etc.
+- Have the owner distribute the shared key to every other user via [`encrypt-with-1-keypair`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#encrypt-with-1-keypair) or [`encrypt-with-2-keypairs`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#encrypt-with-2-keypairs), etc.
 
 # Public data
 
-Tempel has extensive support for "**Additional Authenticated Data**" / "**Additional Associated Data**", see [`help:aad`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-help.3Aaad) for details.
+Tempel has extensive support for "**Additional Authenticated Data**" / "**Additional Associated Data**", see [`help:aad`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#help:aad) for details.
 
-And see [`public-data`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-public-data) for a util that can help identify Tempel output, and access public (unencrypted) info embedded in Tempel output.
+And see [`public-data`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#public-data) for a util that can help identify Tempel output, and access public (unencrypted) info embedded in Tempel output.
 
 # Signing
 
-See [`tempel/sign`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-sign) and [`tempel/signed`](https://taoensso.github.io/tempel/taoensso.tempel.html#var-signed) for details.
+See [`tempel/sign`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#sign) and [`tempel/signed`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#signed) for details.

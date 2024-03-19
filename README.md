@@ -1,5 +1,5 @@
 <a href="https://www.taoensso.com/clojure" title="More stuff by @ptaoussanis at www.taoensso.com"><img src="https://www.taoensso.com/open-source.png" alt="Taoensso open source" width="340"/></a>  
-[**Documentation**](#documentation) | [Latest releases](#latest-releases) | [Get support][GitHub issues]
+[**API**][cljdoc docs] | [**Wiki**][GitHub wiki] | [Latest releases](#latest-releases) | [Slack channel][]
 
 # Tempel
 
@@ -84,7 +84,8 @@ See for intro and usage:
 ## Documentation
 
 - [Wiki][GitHub wiki] (getting started, usage, etc.)
-- API reference: [Codox][Codox docs], [clj-doc][clj-doc docs]
+- API reference: [cljdoc][cljdoc docs] or [Codox][Codox docs]
+- Support: [Slack channel][] or [GitHub issues][]
 
 ## Roadmap
 
@@ -92,10 +93,10 @@ Tempel has a **fixed scope**, and is **fully complete**. I'm happy with its desi
 
 Still, given the sensitivity of the problem domain, I plan to approach Tempel's official stable release as a phased rollout to allow time for feedback before locking things down:
 
-| Phase | Date    | Release       | Appropriate for
-| :-:   | :--     | :--           | :--
-|  ➤   | 2024-02 | `v1.0-RC1`    | Staging, with ephemeral or low-value data
-|       | 2024-05 | `v1.0` final  | Production, with real data
+| Phase | Date    | Release      | Appropriate for                           |
+| :---: | :------ | :----------- | :---------------------------------------- |
+|   ➤   | 2024-02 | `v1.0-RC1`   | Staging, with ephemeral or low-value data |
+|       | 2024-08 | `v1.0` final | Production, with real data                |
 
 `v1.0` final will be considered "**done**"- the library is expected to need+see only minimal maintance from that point.
 
@@ -125,6 +126,7 @@ Licensed under [EPL 1.0](LICENSE.txt) (same as Clojure).
 [GitHub releases]: ../../releases
 [GitHub issues]:   ../../issues
 [GitHub wiki]:     ../../wiki
+[Slack channel]: https://www.taoensso.com/tempel/slack
 
 [Peter Taoussanis]: https://www.taoensso.com
 [sponsor]:          https://www.taoensso.com/sponsor
@@ -132,7 +134,7 @@ Licensed under [EPL 1.0](LICENSE.txt) (same as Clojure).
 <!-- Project -->
 
 [Codox docs]:   https://taoensso.github.io/tempel/
-[clj-doc docs]: https://cljdoc.org/d/com.taoensso/tempel/
+[cljdoc docs]: https://cljdoc.org/d/com.taoensso/tempel/
 
 [Clojars SVG]: https://img.shields.io/clojars/v/com.taoensso/tempel.svg
 [Clojars URL]: https://clojars.org/com.taoensso/tempel
