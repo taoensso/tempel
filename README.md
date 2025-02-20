@@ -1,5 +1,5 @@
 <a href="https://www.taoensso.com/clojure" title="More stuff by @ptaoussanis at www.taoensso.com"><img src="https://www.taoensso.com/open-source.png" alt="Taoensso open source" width="340"/></a>  
-[**API**][cljdoc docs] | [**Wiki**][GitHub wiki] | [Latest releases](#latest-releases) | [Slack channel][]
+[**API**][cljdoc] | [**Wiki**][GitHub wiki] | [Latest releases](#latest-releases) | [Slack channel][]
 
 # Tempel
 
@@ -84,8 +84,8 @@ See for intro and usage:
 ## Documentation
 
 - [Wiki][GitHub wiki] (getting started, usage, etc.)
-- API reference: [cljdoc][cljdoc docs] or [Codox][Codox docs]
-- Support: [Slack channel][] or [GitHub issues][]
+- API reference via [cljdoc][cljdoc]
+- Support via [Slack channel][] or [GitHub issues][]
 
 ## Roadmap
 
@@ -133,8 +133,7 @@ Licensed under [EPL 1.0](LICENSE.txt) (same as Clojure).
 
 <!-- Project -->
 
-[Codox docs]:   https://taoensso.github.io/tempel/
-[cljdoc docs]: https://cljdoc.org/d/com.taoensso/tempel/
+[cljdoc]: https://cljdoc.org/d/com.taoensso/tempel/
 
 [Clojars SVG]: https://img.shields.io/clojars/v/com.taoensso/tempel.svg
 [Clojars URL]: https://clojars.org/com.taoensso/tempel
