@@ -194,12 +194,18 @@
       Default: `:scrypt-r8p1-v1` when `com.lambdaworks.crypto.SCrypt` is available,
       or `:pbkdf2-hmac-sha-256-v1` otherwise.
 
+      Terminology note: when Tempel uses the term `pbkdf` WITHOUT a version number
+      like `pbkdf2`, it's referring to the general concept of ANY \"Password-Based
+      Key Derivation Function\", and NOT any particular implementation (like the
+      common PBKDF1 or PBKDF2 functions).
+
     `:pbkdf-nwf`
       ∈ #{:ref-10-msecs :ref-50-msecs *:ref-100-msecs :ref-200-msecs :ref-500-msecs
           :ref-1000-msecs :ref-2000-msecs :ref-5000-msecs <unsigned-short>}
 
       Normalized work factor (nwf) that describes how much computational effort
-      should be used for password stretching.
+      should be used for password stretching when applying configured password
+      stretching algorithm (see `:pbkdf-algo`).
 
       More effort means more resistance to brute-force attacks, but also more time
       and resources spent during normal operation.
