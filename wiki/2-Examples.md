@@ -102,10 +102,10 @@ See the `*config*` [docstring](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/
       (throw (ex-info "Bad login attempt (rate limited)" {:limit-info rate-limited}))
 
       (or
-        (when-let [encrypted-keychain (get-encrypted-keychain user-id)]
-          (let [decrypted-keychain
-                (tempel/keychain-decrypt encrypted-keychain
-                  {:password user-password})]
+        (when-let   [encrypted-keychain (get-encrypted-keychain user-id)]
+          (when-let [decrypted-keychain
+                     (tempel/keychain-decrypt encrypted-keychain
+                       {:password user-password})]
 
             (password-rate-limiter :rl/reset user-id) ; Reset rate limiter
             decrypted-keychain))
