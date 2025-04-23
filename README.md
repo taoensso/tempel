@@ -7,9 +7,11 @@
 
 **Tempel** is a lightweight encryption *framework* that wraps the JVM's native crypto facilities to provide a **particularly high-level Clojure API** for easily protecting your users' data.
 
-More than another collection of crypto utils, Tempel offers a **coherent and opinionated API for secure data management** and is focused on helping you with the [toughest parts](../../wiki/1-Getting-started#challenges) of actually **using encryption in practice**.
+More than another collection of crypto utils, Tempel offers a **coherent and opinionated API for secure data management** that is focused on helping with the [toughest parts](../../wiki/1-Getting-started#challenges) of actually **using encryption in practice**.
 
 Its [tiny API](../../wiki/1-Getting-started#api-overview) and focus on **smart keychains** helps shield you from unnecessary and error-prone complexity, greatly simplifying the most common data security needs.
+
+⚠️ Tempel is [NOT intended](../../wiki/3-Faq#can-i-decrypt-tempel-data-with-other-tools) for interop with other cryptographic tools/APIs!
 
 ## Latest release/s
 
@@ -30,8 +32,6 @@ See [here][GitHub releases] for earlier releases.
 - Simple **key management API** for password resets, key rotations, etc.
 - Extensive **beginner-oriented** [documentation](#documentation), docstrings, and error messages.
 - **Comprehensive test suite** with >60k unit tests.
-
-Note that Tempel is [not intended](../../wiki/3-Faq#can-i-decrypt-tempel-data-with-other-tools) for interop with other cryptographic tools/APIs!
 
 ## Video demo
 
@@ -95,8 +95,8 @@ Still, given the sensitivity of the problem domain, I plan to approach Tempel's 
 
 | Phase | Date    | Release      | Appropriate for                           |
 | :---: | :------ | :----------- | :---------------------------------------- |
-|   ➤   | 2024-02 | `v1.0-RC1`   | Staging, with ephemeral or low-value data |
-|       | 2024-08 | `v1.0` final | Production, with real data                |
+|  👉   | 2024-02 | `v1.0-RC1`   | Staging, with ephemeral or low-value data |
+|       | 2025-05 | `v1.0` final | Production, with real data                |
 
 `v1.0` final will be considered "**done**"- the library is expected to need+see only minimal maintance from that point.
 
@@ -118,7 +118,7 @@ You can [help support][sponsor] continued work on this project, thank you!! 🙏
 
 ## License
 
-Copyright &copy; 2023-2024 [Peter Taoussanis][].  
+Copyright &copy; 2023-2025 [Peter Taoussanis][].  
 Licensed under [EPL 1.0](LICENSE.txt) (same as Clojure).
 
 <!-- Common -->
