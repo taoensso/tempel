@@ -2,7 +2,8 @@
   "Private ns, implementation detail.
   Key management stuff, supports the changing of algos and/or keys over time."
   (:require
-   [taoensso.encore       :as enc  :refer [have have?]]
+   [taoensso.truss :as truss :refer [have have?]]
+   [taoensso.encore       :as enc]
    [taoensso.encore.bytes :as bytes]
    [taoensso.tempel.df    :as df]
    [taoensso.tempel.impl  :as impl]
@@ -70,7 +71,7 @@
   (hashCode [this]       (impl/cnt-hash key-cnt))
   (toString [this]
     (let [m (select-keys @this [:key-algo :symmetric? :private? :public? :secret? :length])]
-      (str "taoensso.tempel.ChainKey[" m " " (enc/ident-hex-str this) "]")))
+      (str "taoensso.tempel.ChainKey[" m " 0x" (enc/hex-ident-str this) "]")))
 
   clojure.lang.IObj
   (meta     [_  ] ?meta)
@@ -84,7 +85,7 @@
         :sym {:key-type :sym, :key-algo key-algo, :symmetric?  true, :secret? true,                  :key-sym key-cnt, :length (alength ^bytes key-cnt)}
         :prv {:key-type :prv, :key-algo key-algo, :asymmetric? true, :secret? true,  :private? true, :key-prv key-cnt}
         :pub {:key-type :pub, :key-algo key-algo, :asymmetric? true, :secret? false, :public?  true, :key-pub key-cnt}
-        (enc/unexpected-arg! key-type {:expected #{:sym :pub :prv}}))
+        (truss/unexpected-arg! key-type {:expected #{:sym :pub :prv}}))
 
       (enc/assoc-some {:key-cnt key-cnt} :key-id ?key-id))))
 
@@ -166,7 +167,7 @@
                 {:length {:expected impl/default-sym-key-len, :actual (alength ^bytes x-key)}})))
 
           :else (fail! (ex-info "Unexpected `ChainKey` :key-sym type" {:expected 'bytes, :actual (type x-key)})))
-        (enc/unexpected-arg! key-type
+        (truss/unexpected-arg! key-type
           {:expected #{:prv :pub :sym}
            :context  `-chainkey})))))
 
@@ -236,7 +237,7 @@
   clojure.lang.IHashEq (hasheq [_] (hash m-keychain))
 
   Object
-  (toString [this] (str "taoensso.tempel.KeyChain[" @m-info_ " " (enc/ident-hex-str this) "]"))
+  (toString [this] (str "taoensso.tempel.KeyChain[" @m-info_ " 0x" (enc/hex-ident-str this) "]"))
   (hashCode [this] (hash m-keychain))
   (equals   [this other] (and (instance? KeyChain other) (= m-keychain (.-m-keychain ^KeyChain other))))
 
@@ -308,7 +309,7 @@
         {:keychain keychain, :changed? (not (identical? kc1 kc2))}
         :key-id @auto-key-id_)
 
-      (enc/unexpected-arg! return
+      (truss/unexpected-arg! return
         {:expected #{:keychain :map}
          :context  `keychain-add-symmetric-key}))))
 
@@ -375,7 +376,7 @@
         {:keychain keychain, :changed? (not (identical? kc1 kc2))}
         :key-id @auto-key-id_)
 
-      (enc/unexpected-arg! return
+      (truss/unexpected-arg! return
         {:expected #{:keychain :map}
          :context  `keychain-add-asymmetric-keypair}))))
 
@@ -620,7 +621,7 @@
                       {:key-type nil} ; Include all key-ids for `mkc-next-key-id`, etc.
                       ))
 
-                  (enc/unexpected-arg! mode
+                  (truss/unexpected-arg! mode
                     {:expected #{:ba-kc-prv :ba-kc-pub}
                      :context  `mkc-freeze}))
 
@@ -707,7 +708,7 @@
                                        :sym [:key-sym (do                           key-ba)]
                                        :prv [:key-prv (impl/as-key-prv key-algo nil key-ba)]
                                        :pub [:key-pub (impl/as-key-pub key-algo nil key-ba)]
-                                       (enc/unexpected-arg! key-type
+                                       (truss/unexpected-arg! key-type
                                          {:expected #{:sym :prv :pub}
                                           :context  `mkc-thaw}))
 
@@ -1182,7 +1183,7 @@
                   :aad (bytes/?utf8-ba->?str ?ba-aad)
                   :cnt (bytes/?utf8-ba->?str ?ba-ucnt))
 
-                (enc/unexpected-arg! return
+                (truss/unexpected-arg! return
                   {:expected #{:keychain :ba-content :ba-aad :map}
                    :context  `keychain-decrypt})))))))))
 

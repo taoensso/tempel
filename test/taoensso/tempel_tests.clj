@@ -1,7 +1,8 @@
 (ns taoensso.tempel-tests
   (:require
    [clojure.test          :as test  :refer [deftest testing is]]
-   [taoensso.encore       :as enc   :refer [have have? throws?]]
+   [taoensso.truss        :as truss :refer [have have? throws?]]
+   [taoensso.encore       :as enc]
    [taoensso.encore.bytes :as bytes :refer [as-ba ba=]]
    [taoensso.tempel.df    :as df]
    [taoensso.tempel.impl  :as impl]
@@ -422,7 +423,7 @@
 (defmacro is= [form expect & [msg]]
   (if-let [expect-err (:err expect)]
     `(let [result-err# (try ~form nil (catch Throwable t# t#))]
-       (is (boolean (enc/matching-error :any ~expect-err result-err#)) ~msg))
+       (is (boolean (truss/matching-error :any ~expect-err result-err#)) ~msg))
 
     (if (map? expect)
       `(is (enc/submap? ~form ~expect) ~msg)

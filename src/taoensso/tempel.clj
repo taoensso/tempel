@@ -27,7 +27,8 @@
 
   {:author "Peter Taoussanis (@ptaoussanis)"}
   (:require
-   [taoensso.encore :as enc  :refer [have have?]]
+   [taoensso.truss  :as truss :refer [have have?]]
+   [taoensso.encore :as enc]
    [taoensso.encore.bytes :as bytes]
    [taoensso.tempel.df    :as df]
    [taoensso.tempel.impl  :as impl]
@@ -38,7 +39,7 @@
   (remove-ns 'taoensso.tempel)
   (:api (enc/interns-overview)))
 
-(enc/assert-min-encore-version [3 95 1])
+(enc/assert-min-encore-version [3 158 0])
 
 ;;;; TODO
 ;; - Consider including something like Signal's "Double Ratchet" work?
@@ -305,8 +306,8 @@
 
 (defn ^:no-doc get-opts+
   "Implementation detail."
-  ([     opts] (enc/fast-merge *config* opts))
-  ([base opts] (enc/fast-merge base     opts)))
+  ([     opts] (enc/merge *config* opts))
+  ([base opts] (enc/merge base     opts)))
 
 (comment (get-opts+ {} {:a :A}))
 
@@ -365,10 +366,10 @@
   #_df/reference-data-formats
   [ba-tempel-output]
 
-  (when-not (enc/bytes?  ba-tempel-output)
-    (enc/unexpected-arg! ba-tempel-output
-      {:param           'ba-tempel-output
-       :expected        'byte-array}))
+  (when-not (enc/bytes?    ba-tempel-output)
+    (truss/unexpected-arg! ba-tempel-output
+      {:param             'ba-tempel-output
+       :expected          'byte-array}))
   
   (bytes/with-in [in] ba-tempel-output
     (let [_                 (df/read-head! in)
@@ -451,7 +452,7 @@
             :has-hmac?       has-hmac?
             :has-backup-key? has-backup-key?))
 
-        (enc/unexpected-arg! env-kid
+        (truss/unexpected-arg! env-kid
           {:expected :envelope-with-public-data
            :context  `public-data})))))
 
@@ -479,7 +480,7 @@
       :aad (bytes/?utf8-ba->?str ?ba-aad)
       :cnt (bytes/?utf8-ba->?str ?ba-cnt))
 
-    (enc/unexpected-arg! return-kind
+    (truss/unexpected-arg! return-kind
       {:expected #{:ba-content :ba-aad :map}
        :context  context})))
 
@@ -1034,7 +1035,7 @@
 
             (return-val env-kid return ba-cnt ?ba-aad))
 
-          (enc/unexpected-arg! env-kid
+          (truss/unexpected-arg! env-kid
             {:context `decrypt-with-1-keypair
              :expected
              #{:encrypted-with-1-keypair-hybrid-v1

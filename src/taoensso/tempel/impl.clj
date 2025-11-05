@@ -10,7 +10,8 @@
 
   (:refer-clojure :exclude [rand-nth])
   (:require
-   [taoensso.encore       :as enc   :refer [have have?]]
+   [taoensso.truss :as truss :refer [have have?]]
+   [taoensso.encore       :as enc]
    [taoensso.encore.bytes :as bytes :refer [as-ba]]))
 
 (comment
@@ -86,7 +87,7 @@
     randomness in Tempel.
 
     (instance-fn) should return a `java.security.SecureRandom` instance."
-    [instance-fn & body] `(enc/binding [*srng* ~instance-fn] ~@body))
+    [instance-fn & body] `(binding [*srng* ~instance-fn] ~@body))
 
   (defmacro ^:public with-srng-insecure-deterministic!!!
     "Evaluates body with *INSECURE* deterministic `java.util.Random` used
@@ -139,7 +140,7 @@
       :sha-1   @md-sha-1_
       :sha-256 @md-sha-256_
       :sha-512 @md-sha-512_
-      (enc/unexpected-arg! hash-algo
+      (truss/unexpected-arg! hash-algo
         {:expected #{:md5 :sha-1 :sha-256 :sha-512}
          :context  `as-message-digest}))))
 
@@ -201,7 +202,7 @@
       :sha-1   @hmac-sha-1_
       :sha-256 @hmac-sha-256_
       :sha-512 @hmac-sha-512_
-      (enc/unexpected-arg! hash-algo
+      (truss/unexpected-arg! hash-algo
         {:expected #{:md5 :sha-1 :sha-256 :sha-512}
          :context  `as-hmac}))))
 
@@ -265,7 +266,7 @@
       :aes-gcm @cipher-aes-gcm_
       :aes-cbc @cipher-aes-cbc_
       :chacha20-poly1305 @chacha20-poly1305_
-      (enc/unexpected-arg! sym-cipher-algo
+      (truss/unexpected-arg! sym-cipher-algo
         {:expected #{:aes-gcm :aes-cbc :chacha20-poly1305}
          :context  `as-symmetric-cipher}))))
 
@@ -434,7 +435,7 @@
 
         :chacha20-poly1305-v1      sck-chacha20-poly1305-v1
 
-        (enc/unexpected-arg! sym-cipher-algo
+        (truss/unexpected-arg! sym-cipher-algo
           {:expected expected
            :context  `as-symmetric-cipher-kit}))
 
@@ -445,7 +446,7 @@
 ;;;; Asymmetric crypto
 
 (defn- key-algo-unknown! [x context]
-  (enc/unexpected-arg! x
+  (truss/unexpected-arg! x
     {:context context
      :expected
      #{:symmetric
@@ -554,7 +555,7 @@
         :ec-secp384r1 (.initialize kpg (java.security.spec.ECGenParameterSpec. "secp384r1") sr) ; NIST-P-384
         :ec-secp521r1 (.initialize kpg (java.security.spec.ECGenParameterSpec. "secp521r1") sr) ; NIST-P-521
 
-        (enc/unexpected-arg! algo-params
+        (truss/unexpected-arg! algo-params
           {:expected #{:ec-secp256-r1}
            :context  `kpg-get}))
 
@@ -591,7 +592,7 @@
       :ec-secp384r1 (kpg-get "EC" :ec-secp384r1)
       :ec-secp521r1 (kpg-get "EC" :ec-secp521r1)
 
-      (enc/unexpected-arg! key-algo
+      (truss/unexpected-arg! key-algo
         {:expected #{:rsa-<nbits> :dh-<nbits> :ec-<curve>}
          :context  `as-keypair-generator}))))
 
@@ -794,7 +795,7 @@
       (:dh   :dh-1024  :dh-2048  :dh-3072  :dh-4096)  @kf-dh_
       (:ec :ec-secp256r1 :ec-secp384r1 :ec-secp521r1) @kf-ec_
 
-      (enc/unexpected-arg! key-algo
+      (truss/unexpected-arg! key-algo
         {:expected #{:rsa :rsa-<nbits> :dh :dh-<nbits> :ec :ec-<curve>}
          :context  `as-key-factory}))))
 
@@ -857,7 +858,7 @@
            :algo  {:actual    key-algo
                    :expected ?key-algo}})
 
-        :if-let [t (when ?needs (enc/throws (key-algo! key-algo ?needs)))]
+        :if-let [t (when ?needs (truss/throws (key-algo! key-algo ?needs)))]
         (fail!   t
           {:error        :key-needs-mismatch
            :algo         key-algo
@@ -897,7 +898,7 @@
     ^javax.crypto.Cipher [asym-cipher-algo]
     (case asym-cipher-algo
       :rsa-oaep-sha-256-mgf1 @cipher-rsa-oaep-sha-256-mgf1_
-      (enc/unexpected-arg! asym-cipher-algo
+      (truss/unexpected-arg! asym-cipher-algo
         {:expected #{:rsa-oaep-sha-256-mgf1}
          :context  `as-asymmetric-cipher}))))
 
@@ -947,7 +948,7 @@
     (case ka-algo
       :dh   @ka-dh_
       :ecdh @ka-ecdh_
-      (enc/unexpected-arg! ka-algo
+      (truss/unexpected-arg! ka-algo
         {:expected #{:dh :ecdh}
          :context  `as-key-agreement}))))
 
@@ -985,7 +986,7 @@
       :sha-512-rsa   @sig-sha-512-rsa_
       :sha-256-ecdsa @sig-sha-256-ecdsa_
       :sha-512-ecdsa @sig-sha-512-ecdsa_
-      (enc/unexpected-arg! sig-algo
+      (truss/unexpected-arg! sig-algo
         {:expected #{:sha-<nbits>-rsa :sha-<nbits>-ecdsa}
          :context  `as-signature}))))
 

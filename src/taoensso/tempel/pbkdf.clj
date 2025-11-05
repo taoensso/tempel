@@ -3,7 +3,8 @@
   Key derivation stuff."
   (:refer-clojure :exclude [rand-nth])
   (:require
-   [taoensso.encore       :as enc   :refer [have have?]]
+   [taoensso.truss :as truss :refer [have have?]]
+   [taoensso.encore       :as enc]
    [taoensso.encore.bytes :as bytes :refer [as-ba]]
    [taoensso.tempel.impl  :as impl]))
 
@@ -61,7 +62,7 @@
     [algo-skf]
     (case algo-skf
       :hmac-sha-256 @skf-pbkdf2-hmac-sha-256_
-      (enc/unexpected-arg! algo-skf
+      (truss/unexpected-arg! algo-skf
         {:expected #{:hmac-sha-256}
          :context  `as-secret-key-factory-pbkdf2}))))
 
@@ -168,7 +169,7 @@
         :scrypt-r8p1-v1         kit-scrypt-r8p1-v1
         :pbkdf2-hmac-sha-256-v1 kit-pbkdf2-hmac-sha-256-v1
         :sha-512-v1-deprecated  kit-sha-512-v1-deprecated
-        (enc/unexpected-arg! pbkdf-algo
+        (truss/unexpected-arg! pbkdf-algo
           {:expected expected
            :context  `as-pbkdf-kit}))
 
@@ -325,7 +326,7 @@
               (:ref-2000-msecs :r2000) (get ref-nwfs :r2000)
               (:ref-5000-msecs :r5000) (get ref-nwfs :r10)
               (:ref-max        :rmax)  rmax
-              (enc/unexpected-arg! nwf
+              (truss/unexpected-arg! nwf
                 {:context `pbkdf-nwf-parse
                  :expected
                  #{:ref-10-msecs :ref-50-msecs :ref-100-msecs :ref-200-msecs

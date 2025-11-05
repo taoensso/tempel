@@ -2,7 +2,8 @@
   "Private ns, implementation detail.
   Data format stuff."
   (:require
-   [taoensso.encore       :as enc  :refer [have have?]]
+   [taoensso.truss :as truss :refer [have have?]]
+   [taoensso.encore       :as enc]
    [taoensso.encore.bytes :as bytes])
 
   (:import
@@ -185,14 +186,14 @@
     "m-flags: {:keys [has-hmac has-backup-key]} "
     [^DataOutput out schema+ m-flags]
     (let [flags    (reduce-kv (fn [acc k v] (if v (conj acc k) acc)) #{} m-flags)
-          schema   (enc/fast-merge base-schema-freeze schema+)
+          schema   (enc/merge base-schema-freeze schema+)
           ba-flags (bytes/freeze-set schema flags)]
       (bytes/write-dynamic-ba out ba-flags)))
 
   (defn skip-flags [^DataInput in] (bytes/skip-dynamic-ba in))
   (defn read-flags [^DataInput in schema+]
     (when-let [ba (bytes/read-dynamic-?ba in)]
-      (let [schema (enc/fast-merge base-schema-thaw schema+)]
+      (let [schema (enc/merge base-schema-thaw schema+)]
         (try
           (bytes/thaw-set schema ba)
           (catch Throwable t
