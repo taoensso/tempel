@@ -610,7 +610,7 @@
             (fn [ba-key1]
               (if (or ignore-hmac? (impl/ehmac-pass? ehmac* ba-encrypted hash-algo ba-key1 ba-iv))
                 ba-key1
-                (throw (ex-info impl/error-msg-bad-ehmac {}))))
+                (truss/ex-info! impl/error-msg-bad-ehmac {})))
 
             sck      (impl/as-symmetric-cipher-kit sym-cipher-algo)
             ba-key1b (keys/get-backup-key-for-decryption ?ba-ekey1b opts+)
@@ -630,8 +630,8 @@
 
               (catch Throwable t
                 (if ba-key1b
-                  (throw (ex-info impl/error-msg-bad-backup-key {} t))
-                  (throw (ex-info impl/error-msg-bad-pwd        {} t)))))]
+                  (truss/ex-info! impl/error-msg-bad-backup-key {} t)
+                  (truss/ex-info! impl/error-msg-bad-pwd        {} t))))]
 
         (return-val env-kid return ba-cnt ?ba-aad)))))
 
@@ -754,7 +754,7 @@
             (fn [ba-key1]
               (if (or ignore-hmac? (impl/ehmac-pass? ehmac* ba-encrypted hash-algo ba-key1 ba-iv))
                 ba-key1
-                (throw (ex-info impl/error-msg-bad-ehmac {}))))
+                (truss/ex-info! impl/error-msg-bad-ehmac {})))
 
             sck (impl/as-symmetric-cipher-kit sym-cipher-algo)
             ba-cnt
@@ -765,7 +765,7 @@
                   (impl/sck-decrypt sck ba-iv ba-key2 ba-ecnt ?ba-aad))
 
                 (catch Throwable t
-                  (throw (ex-info impl/error-msg-bad-backup-key {} t))))
+                  (truss/ex-info! impl/error-msg-bad-backup-key {} t)))
 
               (let [ckeys-sym (keys/get-ckeys-sym-cipher key-sym ?key-id)]
                 (keys/try-decrypt-with-keys! `decrypt-with-symmetric-key
@@ -845,14 +845,13 @@
             :hybrid                  false ; Default
             :simple
             (if need-hybrid?
-              (throw
-                (ex-info "Cannot use `:simple` scheme (>0 opts require `:hybrid`)"
-                  (enc/assoc-when {}
-                    :large-content?          large-cnt?
-                    :embed-hmac?    (boolean embed-hmac?)
-                    :ba-aad?        (boolean ba-aad)
-                    :ba-akm?        (boolean ba-akm)
-                    :backup-key?    (boolean backup-key))))
+              (truss/ex-info! "Cannot use `:simple` scheme (>0 opts require `:hybrid`)"
+                (enc/assoc-when {}
+                  :large-content?          large-cnt?
+                  :embed-hmac?    (boolean embed-hmac?)
+                  :ba-aad?        (boolean ba-aad)
+                  :ba-akm?        (boolean ba-akm)
+                  :backup-key?    (boolean backup-key)))
               true)))]
 
     (if simple-scheme?
@@ -961,7 +960,7 @@
           #_(df/reference-data-formats :encrypted-with-1-keypair-simple-v1)
           (let [_
                 (when ba-akm
-                  (throw (ex-info "Failed to decrypt Tempel data (no AKM support)" {})))
+                  (truss/ex-info! "Failed to decrypt Tempel data (no AKM support)" {}))
 
                 ;; ?ba-aad         (bytes/read-dynamic-?ba  in)
                 key-algo           (df/read-kid             in :key-algo)
@@ -1008,7 +1007,7 @@
                 (fn [ba-key1]
                   (if (or ignore-hmac? (impl/ehmac-pass? ehmac* ba-encrypted hash-algo ba-key1 ba-iv))
                     ba-key1
-                    (throw (ex-info impl/error-msg-bad-ehmac {}))))
+                    (truss/ex-info! impl/error-msg-bad-ehmac {})))
 
                 sck (impl/as-symmetric-cipher-kit sym-cipher-algo)
                 ba-cnt
@@ -1019,7 +1018,7 @@
                       (impl/sck-decrypt sck ba-iv ba-key2 ba-ecnt ?ba-aad))
 
                     (catch Throwable t
-                      (throw (ex-info impl/error-msg-bad-backup-key {} t))))
+                      (truss/ex-info! impl/error-msg-bad-backup-key {} t)))
 
                   (let [ckeys-prv (keys/get-ckeys-asym-cipher receiver-key-prv key-algo ?key-id)]
                     (keys/try-decrypt-with-keys! `decrypt-with-1-keypair
@@ -1199,7 +1198,7 @@
             (fn [ba-key1]
               (if (or ignore-hmac? (impl/ehmac-pass? ehmac* ba-encrypted hash-algo ba-key1 ba-iv))
                 ba-key1
-                (throw (ex-info impl/error-msg-bad-ehmac {}))))
+                (truss/ex-info! impl/error-msg-bad-ehmac {})))
 
             sck (impl/as-symmetric-cipher-kit sym-cipher-algo)
             ba-cnt
@@ -1210,7 +1209,7 @@
                   (impl/sck-decrypt sck ba-iv ba-key2 ba-ecnt ?ba-aad))
 
                 (catch Throwable t
-                  (throw (ex-info impl/error-msg-bad-backup-key {} t))))
+                  (truss/ex-info! impl/error-msg-bad-backup-key {} t)))
 
               (let [ckey-pairs ; [[<recvr-ckey-prv> <sendr-ckey-pub>] ...]
                     (keys/get-ckeys-ka key-algo

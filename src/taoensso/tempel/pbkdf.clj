@@ -150,7 +150,7 @@
     have-dep-pbkdf-scrypt?                                            :scrypt-r8p1-v1
     (impl/non-throwing? (as-secret-key-factory-pbkdf2 :hmac-sha-256)) :pbkdf2-hmac-sha-256-v1
     (impl/non-throwing? (impl/as-message-digest :sha-512))            :sha-512-v1-deprecated
-    (throw (ex-info "No viable PBKDF kit available" {}))))
+    :else (truss/ex-info! "No viable PBKDF kit available" {})))
 
 (comment pbkdf-kit-best-available)
 
@@ -253,10 +253,9 @@
                     :status (if (<= error-perc 10) :okay :warn)}}]
 
        (if (> ^long nwf-proposed bytes/range-ushort)
-         (throw
-           ;; If target msecs is reasonable, => scaling fn may need adjustment (breaking!)
-           (ex-info "Estimated PBKDF normalized work factor exceeds unsigned byte range"
-             estimate))
+         ;; If target msecs is reasonable, => scaling fn may need adjustment (breaking!)
+         (truss/ex-info! "Estimated PBKDF normalized work factor exceeds unsigned byte range"
+           estimate)
 
          estimate)))))
 
@@ -334,10 +333,9 @@
             nwf))]
 
     (if (or (< nwf (long rmin)) (> nwf (long rmax)))
-      (throw
-        (ex-info (str "Invalid PBKDF normalized work factor: " nwf)
-          {:pbkdf-kit (get pbkdf-kit :pbkdf-kit)
-           :nwf {:given nwf :min rmin :max rmax}}))
+      (truss/ex-info! (str "Invalid PBKDF normalized work factor: " nwf)
+        {:pbkdf-kit (get pbkdf-kit :pbkdf-kit)
+         :nwf {:given nwf :min rmin :max rmax}})
 
       (bytes/as-ushort nwf))))
 

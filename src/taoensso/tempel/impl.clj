@@ -43,12 +43,11 @@
 (defmacro non-throwing? [form] `(try (do ~form true) (catch Throwable _# false)))
 
 (defn missing-dep! [dep maven-gid context]
-  (throw
-    (ex-info
-      (str "Missing optional dependency: `" maven-gid "`")
-      {:dependency     dep
-       :maven-group-id maven-gid
-       :context        context})))
+  (truss/ex-info!
+    (str "Missing optional dependency: `" maven-gid "`")
+    {:dependency     dep
+     :maven-group-id maven-gid
+     :context        context}))
 
 (comment
   (missing-dep!
@@ -239,7 +238,7 @@
 
      (if @content?
        (.doFinal hmac)
-       (throw (ex-info "HMAC needs >0 content length" {}))))))
+       (truss/ex-info! "HMAC needs >0 content length" {})))))
 
 (let [ba-dummy (byte-array [0 1 2 3 4 5 6 7])
       cached   (enc/fmemoize #(alength (hmac % ba-dummy ba-dummy)))]
@@ -314,9 +313,8 @@
 (defn- ensure-no-aad! [sck ?ba-aad]
   (when-let [^bytes ba-aad ?ba-aad]
     (when (pos?    (alength ba-aad))
-      (throw
-        (ex-info "AAD not supported for cipher"
-          {:cipher (sck-kid sck)})))))
+      (truss/ex-info! "AAD not supported for cipher"
+        {:cipher (sck-kid sck)}))))
 
 (deftype SymmetricCipherKit-aes-cbc-v1-deprecated
   [^int key-len ^int iv-len]
@@ -510,14 +508,13 @@
      (do
        (doseq [need needs]
          (when-not (get m-info need)
-           (throw
-             (case need
-               :symmetric?       (ex-info "Unexpected key algorithm: need symmetric type"            {:key-algo         key-algo, :type {:actual :asymmetric, :expected :symmetric}})
-               :asymmetric?      (ex-info "Unexpected key algorithm: need asymmetric type"           {:key-algo         key-algo, :type {:actual :symmetric,  :expected :asymmetric}})
-               :sig-algo         (ex-info "Unexpected key algorithm: need signature support"         {:key-algo {:given key-algo, :expected #{:rsa-<nbits> :ec-<curve>}}})
-               :ka-algo          (ex-info "Unexpected key algorithm: need key agreement support"     {:key-algo {:given key-algo, :expected #{:dh-<nbits>  :ec-<curve>}}}) 
-               :asym-cipher-algo (ex-info "Unexpected key algorithm: need asymmetric cipher support" {:key-algo {:given key-algo, :expected #{:rsa-<nbits>}}})
-               (do               (ex-info "Unexpected key algorithm: doesn't meet need"              {:key-algo         key-algo, :need need}))))))
+           (case need
+             :symmetric?       (truss/ex-info! "Unexpected key algorithm: need symmetric type"            {:key-algo         key-algo, :type {:actual :asymmetric, :expected :symmetric}})
+             :asymmetric?      (truss/ex-info! "Unexpected key algorithm: need asymmetric type"           {:key-algo         key-algo, :type {:actual :symmetric,  :expected :asymmetric}})
+             :sig-algo         (truss/ex-info! "Unexpected key algorithm: need signature support"         {:key-algo {:given key-algo, :expected #{:rsa-<nbits> :ec-<curve>}}})
+             :ka-algo          (truss/ex-info! "Unexpected key algorithm: need key agreement support"     {:key-algo {:given key-algo, :expected #{:dh-<nbits>  :ec-<curve>}}})
+             :asym-cipher-algo (truss/ex-info! "Unexpected key algorithm: need asymmetric cipher support" {:key-algo {:given key-algo, :expected #{:rsa-<nbits>}}})
+             (do               (truss/ex-info! "Unexpected key algorithm: doesn't meet need"              {:key-algo         key-algo, :need need})))))
        key-algo)
 
      (key-algo-unknown! key-algo `key-algo!))))
@@ -720,10 +717,9 @@
            1093849038073734274511112390766805569936207598951683748994586394495953116150735016013708737573759623248592132296706313309438452531591012912142327488478985984N]
           :ec-secp521r1
 
-          (throw
-            (ex-info "Unexpected `java.security.interfaces.ECKey` curve"
-              {:expected #{:ec-secp256-r1 :ec-secp384r1 :ec-secp521r1}
-               :context  `keypair-info-ec})))]
+          (truss/ex-info! "Unexpected `java.security.interfaces.ECKey` curve"
+            {:expected #{:ec-secp256-r1 :ec-secp384r1 :ec-secp521r1}
+             :context  `keypair-info-ec}))]
 
     {:key-algo key-algo}))
 
@@ -742,9 +738,8 @@
           {key-algo-pub :key-algo, :as info-pub} (-keypair-info (.getPublic  x))]
 
       (if (and key-algo-prv key-algo-pub (not= key-algo-prv key-algo-pub))
-        (throw
-          (ex-info "Unmatched `java.security.KeyPair` algorithms"
-            {:key-algos {:private key-algo-prv, :public key-algo-prv}}))
+        (truss/ex-info! "Unmatched `java.security.KeyPair` algorithms"
+          {:key-algos {:private key-algo-prv, :public key-algo-prv}})
 
         (merge info-prv info-pub))))
 
@@ -813,12 +808,11 @@
     (let [key-class (if private? java.security.PrivateKey java.security.PublicKey)
           fail!
           (fn [throwable error-data]
-            (throw
-              (ex-info (str "Failed to prepare expected `" (.getName ^java.lang.Class key-class) "`")
-                (enc/assoc-some error-data
-                  :given-type (type x-key)
-                  :requested-key-algo ?key-algo)
-                throwable)))
+            (truss/ex-info! (str "Failed to prepare expected `" (.getName ^java.lang.Class key-class) "`")
+              (enc/assoc-some error-data
+                :given-type (type x-key)
+                :requested-key-algo ?key-algo)
+              throwable))
 
           key
           (enc/cond

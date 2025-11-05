@@ -114,13 +114,12 @@
       (fn lookup-id [m kind id thaw?]
         (if-let [e (find m id)]
           (val e)
-          (throw
-            (ex-info
-              (if thaw?
-                (str "Unexpected Tempel identifier: `" id "`. " error-msg-newer-version)
-                (str "Unexpected Tempel identifier: `" id "`"))
-              {:identifier {:kind kind, :value id, :type (type id)}
-               :expected   (set (keys m))}))))]
+          (truss/ex-info!
+            (if thaw?
+              (str "Unexpected Tempel identifier: `" id "`. " error-msg-newer-version)
+              (str "Unexpected Tempel identifier: `" id "`"))
+            {:identifier {:kind kind, :value id, :type (type id)}
+             :expected   (set (keys m))})))]
 
   (let [m (:by-kid m-ids)] (defn- freeze-kid [kind kid] (-> m (lup kind kind false) (lup kind kid false))))
   (let [m (:by-bid m-ids)] (defn- thaw-bid   [kind bid] (-> m (lup kind kind true)  (lup kind bid true)))))
@@ -139,10 +138,9 @@
                  (=         expected-kid kid))]
      (if pass?
        kid
-       (throw
-         (ex-info (str "Unexpected Tempel identifier: `" kid "`. " error-msg-newer-version)
-           {:identifier {:actual kid, :expected expected-kid}
-            :kind       kind}))))))
+       (truss/ex-info! (str "Unexpected Tempel identifier: `" kid "`. " error-msg-newer-version)
+         {:identifier {:actual kid, :expected expected-kid}
+          :kind       kind})))))
 
 ;;;; Headers, etc.
 
@@ -158,9 +156,8 @@
     (let [ba (read-head in)]
       (or
         (and ba (enc/ba= ba ba-head))
-        (throw
-          (ex-info (str "Expected Tempel header not found in data stream. " error-msg-not-tempel)
-            {:read {:actual (vec ba), :expected (vec ba-head)}}))))))
+        (truss/ex-info! (str "Expected Tempel header not found in data stream. " error-msg-not-tempel)
+          {:read {:actual (vec ba), :expected (vec ba-head)}})))))
 
 (defn write-resv       [^DataOutput out] (bytes/write-dynamic-ba out nil))
 (defn  read-resv ^long [^DataInput   in] (long (.readByte in)))
@@ -168,10 +165,9 @@
   (let [b (read-resv in)]
     (or
       (== b (bytes/from-ubyte 0))
-      (throw
-        (ex-info
-          (str "Reserved Tempel extension point unexpectedly in use. " error-msg-newer-version)
-          {:value {:actual b, :expected 0}})))))
+      (truss/ex-info!
+        (str "Reserved Tempel extension point unexpectedly in use. " error-msg-newer-version)
+        {:value {:actual b, :expected 0}}))))
 
 ;;;; Flags
 ;; Efficient (BitSet) flag storage
@@ -197,9 +193,8 @@
         (try
           (bytes/thaw-set schema ba)
           (catch Throwable t
-            (throw
-              (ex-info (str "Unexpected Tempel flag encountered. " error-msg-newer-version)
-                {} t))))))))
+            (truss/ex-info! (str "Unexpected Tempel flag encountered. " error-msg-newer-version)
+              {} t)))))))
 
 (comment (vec (bytes/freeze-set {0 0 1 1 2 2 3 3 4 4 5 5 6 6 7 7} #{0 1 2 3 4 5 6 7})))
 

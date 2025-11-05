@@ -41,7 +41,7 @@
         (try
           (core/encrypt-with-1-keypair (have enc/bytes? ba-key1) backup-key backup-opts)
           (catch Throwable t
-            (throw (ex-info "Failed to enable backup key support during encryption" {} t))))))))
+            (truss/ex-info! "Failed to enable backup key support during encryption" {} t)))))))
 
 (defn get-backup-key-for-decryption
   "Returns `?ba-key1` or decrypted (symmetric) backup key.
@@ -61,7 +61,7 @@
           (try
             (core/decrypt-with-1-keypair ba-ekey1b backup-key backup-opts)
             (catch Throwable t
-              (throw (ex-info "Failed to decrypt embedded backup key" {} t)))))))))
+              (truss/ex-info! "Failed to decrypt embedded backup key" {} t))))))))
 
 ;;;; ChainKey
 
@@ -95,14 +95,13 @@
 (defn- -chainkey [key-type ?key-algo ?needs ?key-id x-key]
   (let [fail!
         (fn [cause]
-          (throw
-            (ex-info "Failed to prepare appropriate `ChainKey`"
-              (enc/assoc-some
-                {:key-type key-type, :x-key {:value 'redacted, :type (type x-key)}}
-                :needs    ?needs
-                :key-algo ?key-algo
-                :key-id   ?key-id)
-              cause)))
+          (truss/ex-info! "Failed to prepare appropriate `ChainKey`"
+            (enc/assoc-some
+              {:key-type key-type, :x-key {:value 'redacted, :type (type x-key)}}
+              :needs    ?needs
+              :key-algo ?key-algo
+              :key-id   ?key-id)
+            cause))
 
         x-key
         (or
@@ -112,17 +111,17 @@
 
     (enc/cond
       (not (or (nil? ?key-id) (string? ?key-id)))
-      (fail! (ex-info "Unexpected `ChainKey` :key-id type" {:expected '?string, :actual {:value ?key-id, :type (type ?key-id)}}))
+      (fail! (truss/ex-info "Unexpected `ChainKey` :key-id type" {:expected '?string, :actual {:value ?key-id, :type (type ?key-id)}}))
 
       (chainkey? x-key)
       (enc/cond
         :let [key-type* (.-key-type ^ChainKey x-key)]
         (not= key-type* key-type)
-        (fail! (ex-info "Unexpected `ChainKey` :key-type value" {:expected key-type, :actual key-type*}))
+        (fail! (truss/ex-info "Unexpected `ChainKey` :key-type value" {:expected key-type, :actual key-type*}))
 
         :let [key-algo* (.-key-algo ^ChainKey x-key)]
         (and ?key-algo (not= key-algo* ?key-algo))
-        (fail! (ex-info "Unexpected `ChainKey` :key-algo value" {:expected ?key-algo, :actual key-algo*}))
+        (fail! (truss/ex-info "Unexpected `ChainKey` :key-algo value" {:expected ?key-algo, :actual key-algo*}))
 
         :let [key-id* (.-?key-id ^ChainKey x-key)]
         (and ?key-id (not= key-id* ?key-id))
@@ -162,11 +161,11 @@
           (if (>= (alength ^bytes x-key) impl/default-sym-key-len)
             (ChainKey. :sym :symmetric nil ?key-id x-key)
             (fail!
-              (ex-info
+              (truss/ex-info
                 (format "Symmetric keys must be at least %s bytes long" impl/default-sym-key-len)
                 {:length {:expected impl/default-sym-key-len, :actual (alength ^bytes x-key)}})))
 
-          :else (fail! (ex-info "Unexpected `ChainKey` :key-sym type" {:expected 'bytes, :actual (type x-key)})))
+          :else (fail! (truss/ex-info "Unexpected `ChainKey` :key-sym type" {:expected 'bytes, :actual (type x-key)})))
         (truss/unexpected-arg! key-type
           {:expected #{:prv :pub :sym}
            :context  `-chainkey})))))
@@ -576,7 +575,7 @@
   #_(df/reference-data-formats :keychain-<part>-v1)
   [m-keychain]
   (have? map? m-keychain)
-  (let [fail! (fn [msg ex-data] (throw (ex-info msg ex-data)))
+  (let [fail! (fn [msg ex-data] (truss/ex-info! msg ex-data))
         entry-fn ; => ?{:keys [key-type key-algo priority key-ba]}
         (fn [key-id mkc-entry key-at expected-class key-ba-fn]
 
@@ -740,7 +739,7 @@
 
 (defn- missing-ckey!
   ([      ex-data] (missing-ckey! nil ex-data))
-  ([cause ex-data] (throw (ex-info "Appropriate key/s not available in `KeyChain`" ex-data cause))))
+  ([cause ex-data] (truss/ex-info! "Appropriate key/s not available in `KeyChain`" ex-data cause)))
 
 (defn get-ckeys-sym-cipher
   "Arity 1: for encryption =>  <ckey>
@@ -879,15 +878,14 @@
              (reduced                [recvr-ck-pub sendr-ck-prv])))
          nil recvr-cks-pub sendr-cks-prv)
 
-       (throw
-         (ex-info "No matching asymmetric keypairs available for key agreement via given args"
-           {:given-types
-            {:receiver-key-pub (type receiver-x-pub)
-             :sender-key-prv   (type sender-x-prv)}
+       (truss/ex-info! "No matching asymmetric keypairs available for key agreement via given args"
+         {:given-types
+          {:receiver-key-pub (type receiver-x-pub)
+           :sender-key-prv   (type sender-x-prv)}
 
-            :key-algos
-            {:receiver-key-pub (into #{} (mapv #(impl/keypair-algo (get @% :key-pub)) recvr-cks-pub))
-             :sender-key-prv   (into #{} (mapv #(impl/keypair-algo (get @% :key-prv)) sendr-cks-prv))}})))))
+          :key-algos
+          {:receiver-key-pub (into #{} (mapv #(impl/keypair-algo (get @% :key-pub)) recvr-cks-pub))
+           :sender-key-prv   (into #{} (mapv #(impl/keypair-algo (get @% :key-prv)) sendr-cks-prv))}}))))
 
   ([key-algo
     [receiver-x-prv ?receiver-key-id]
@@ -910,17 +908,16 @@
                (do   acc)))
            [] recvr-cks-prv sendr-cks-pub))
 
-       (throw
-         (ex-info
-           (format "No matching asymmetric `%s` keypairs available for key agreement via given args" key-algo)
-           {:given-types
-            {:receiver-key-prv (type receiver-x-prv)
-             :sender-key-pub   (type sender-x-pub)}
+       (truss/ex-info!
+         (format "No matching asymmetric `%s` keypairs available for key agreement via given args" key-algo)
+         {:given-types
+          {:receiver-key-prv (type receiver-x-prv)
+           :sender-key-pub   (type sender-x-pub)}
 
-            :key-algos
-            {:requested        key-algo
-             :receiver-key-prv (into #{} (mapv #(impl/keypair-algo (get @% :key-prv)) recvr-cks-prv))
-             :sender-key-pub   (into #{} (mapv #(impl/keypair-algo (get @% :key-pub)) sendr-cks-pub))}}))))))
+          :key-algos
+          {:requested        key-algo
+           :receiver-key-prv (into #{} (mapv #(impl/keypair-algo (get @% :key-prv)) recvr-cks-prv))
+           :sender-key-pub   (into #{} (mapv #(impl/keypair-algo (get @% :key-pub)) sendr-cks-pub))}})))))
 
 (comment :see-tests)
 
@@ -986,7 +983,7 @@
         (core/get-opts+ opts)
 
         _ (have? some? hash-algo sym-cipher-algo)
-        _ (when (and password key-sym) (throw (ex-info error-msg-need-pwd-xor-key-sym {})))
+        _ (when (and password key-sym) (truss/ex-info! error-msg-need-pwd-xor-key-sym {}))
 
         sck       (impl/as-symmetric-cipher-kit sym-cipher-algo)
         ba-iv     (impl/rand-ba impl/min-iv-len)
@@ -1008,7 +1005,7 @@
              :?ba-key-id (when embed-key-ids? (bytes/?str->?utf8-ba key-id))})
 
           :else
-          (throw (ex-info error-msg-need-pwd-or-key-sym {})))
+          (truss/ex-info! error-msg-need-pwd-or-key-sym {}))
 
         ?ba-ekey1b (get-backup-key-for-encryption ba-key1 opts+)
         {:keys [ba-kc-prv ba-kc-pub]} (keychain-freeze keychain)
@@ -1090,7 +1087,7 @@
         (core/get-opts+ opts)]
 
     (when (and password key-sym)
-      (throw (ex-info error-msg-need-pwd-xor-key-sym {})))
+      (truss/ex-info! error-msg-need-pwd-xor-key-sym {}))
 
     (bytes/with-in [in bais] ba-ekc
       (let [env-kid         :encrypted-keychain-v1
@@ -1118,7 +1115,7 @@
             (fn [ba-key1]
               (if (or ignore-hmac? (impl/ehmac-pass? ehmac* ba-ekc hash-algo ba-key1 ba-iv))
                 ba-key1
-                (throw (ex-info impl/error-msg-bad-ehmac {}))))
+                (truss/ex-info! impl/error-msg-bad-ehmac {})))
 
             sck (impl/as-symmetric-cipher-kit sym-cipher-algo)
             ?ba-cnt
@@ -1129,7 +1126,7 @@
                        ba-key2 (impl/derive-ba-key2 hash-algo ba-key1 ba-iv)]
                   (impl/sck-decrypt sck ba-iv ba-key2 ba-ecnt ?ba-aad))
                 (catch Throwable t
-                  (throw (ex-info impl/error-msg-bad-backup-key {} t))))
+                  (truss/ex-info! impl/error-msg-bad-backup-key {} t)))
 
               password
               (try
@@ -1158,7 +1155,7 @@
                 (catch Throwable t nil))
 
               :else
-              (throw (ex-info error-msg-need-pwd-or-key-sym {})))]
+              (truss/ex-info! error-msg-need-pwd-or-key-sym {}))]
 
         (when-let [ba-cnt ?ba-cnt]
           (bytes/with-in [in] ba-cnt
@@ -1234,20 +1231,18 @@
     (enc/cond
       :if-let [success (get result :success)] success
       :if-let [t       (get result :error)]
-      (throw
-        (ex-info
-          (if embedded-key-ids?
-            "Failed to decrypt Tempel data (1 identified key tried)"
-            "Failed to decrypt Tempel data (1 unidentified key tried)")
-          {:context context, :num-keys-tried 1, :embedded-key-ids? embedded-key-ids?}
-          t))
+      (truss/ex-info!
+        (if embedded-key-ids?
+          "Failed to decrypt Tempel data (1 identified key tried)"
+          "Failed to decrypt Tempel data (1 unidentified key tried)")
+        {:context context, :num-keys-tried 1, :embedded-key-ids? embedded-key-ids?}
+        t)
 
       :else
       (let [errors (get result :errors)
             nkeys  (count possible-keys)]
-        (throw
-          (ex-info (str "Failed to decrypt Tempel data (" nkeys " unidentified keys tried)")
-            {:context           context
-             :num-keys-tried    nkeys
-             :embedded-key-ids? embedded-key-ids?
-             :errors            errors}))))))
+        (truss/ex-info! (str "Failed to decrypt Tempel data (" nkeys " unidentified keys tried)")
+          {:context           context
+           :num-keys-tried    nkeys
+           :embedded-key-ids? embedded-key-ids?
+           :errors            errors})))))
