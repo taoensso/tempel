@@ -50,10 +50,7 @@
 
 (comment (pbkdf-scrypt 32 (as-ba "salt") (as-ba "pwd") (Math/pow 2 14) {}))
 
-(let [skf-pbkdf2-hmac-sha-256_
-      (enc/thread-local
-        (javax.crypto.SecretKeyFactory/getInstance
-          "PBKDF2WithHmacSHA256"))]
+(let [tl:skf-pbkdf2-hmac-sha-256 (enc/threadlocal (javax.crypto.SecretKeyFactory/getInstance "PBKDF2WithHmacSHA256"))]
 
   (defn- as-secret-key-factory-pbkdf2
     "Returns `javax.crypto.SecretKeyFactory`, or throws.
@@ -61,7 +58,7 @@
     ^javax.crypto.SecretKeyFactory
     [algo-skf]
     (case algo-skf
-      :hmac-sha-256 @skf-pbkdf2-hmac-sha-256_
+      :hmac-sha-256 (.get tl:skf-pbkdf2-hmac-sha-256)
       (truss/unexpected-arg! algo-skf
         {:expected #{:hmac-sha-256}
          :context  `as-secret-key-factory-pbkdf2}))))

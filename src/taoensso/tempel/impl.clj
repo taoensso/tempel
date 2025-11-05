@@ -125,20 +125,20 @@
 ;; (defn hash-murmur3 ^long [^String s] (clojure.lang.Murmur3/hashUnencodedChars s))
 ;; (comment (hash-murmur3 "hello"))
 
-(let [md-md5_     (enc/thread-local (java.security.MessageDigest/getInstance "MD5"))
-      md-sha-1_   (enc/thread-local (java.security.MessageDigest/getInstance "SHA-1"))
-      md-sha-256_ (enc/thread-local (java.security.MessageDigest/getInstance "SHA-256"))
-      md-sha-512_ (enc/thread-local (java.security.MessageDigest/getInstance "SHA-512"))]
+(let [tl:md-md5     (enc/threadlocal (java.security.MessageDigest/getInstance "MD5"))
+      tl:md-sha-1   (enc/threadlocal (java.security.MessageDigest/getInstance "SHA-1"))
+      tl:md-sha-256 (enc/threadlocal (java.security.MessageDigest/getInstance "SHA-256"))
+      tl:md-sha-512 (enc/threadlocal (java.security.MessageDigest/getInstance "SHA-512"))]
 
   (defn as-message-digest
     "Returns `java.security.MessageDigest`, or throws.
     Takes `hash-algo` ∈ #{:md5 :sha-1 :sha-256 :sha-512}."
     ^java.security.MessageDigest [hash-algo]
     (case hash-algo
-      :md5     @md-md5_
-      :sha-1   @md-sha-1_
-      :sha-256 @md-sha-256_
-      :sha-512 @md-sha-512_
+      :md5     (.get tl:md-md5)
+      :sha-1   (.get tl:md-sha-1)
+      :sha-256 (.get tl:md-sha-256)
+      :sha-512 (.get tl:md-sha-512)
       (truss/unexpected-arg! hash-algo
         {:expected #{:md5 :sha-1 :sha-256 :sha-512}
          :context  `as-message-digest}))))
@@ -187,20 +187,20 @@
 ;; Note that HMAC can also be used as part of HKDF (RFC 5869), in which case
 ;; an optional/zeroed salt is used as shared secret.
 
-(let [hmac-md5_     (enc/thread-local (javax.crypto.Mac/getInstance "HmacMD5"))
-      hmac-sha-1_   (enc/thread-local (javax.crypto.Mac/getInstance "HmacSHA1"))
-      hmac-sha-256_ (enc/thread-local (javax.crypto.Mac/getInstance "HmacSHA256"))
-      hmac-sha-512_ (enc/thread-local (javax.crypto.Mac/getInstance "HmacSHA512"))]
+(let [tl:hmac-md5     (enc/threadlocal (javax.crypto.Mac/getInstance "HmacMD5"))
+      tl:hmac-sha-1   (enc/threadlocal (javax.crypto.Mac/getInstance "HmacSHA1"))
+      tl:hmac-sha-256 (enc/threadlocal (javax.crypto.Mac/getInstance "HmacSHA256"))
+      tl:hmac-sha-512 (enc/threadlocal (javax.crypto.Mac/getInstance "HmacSHA512"))]
 
   (defn- as-hmac
     "Returns `javax.crypto.Mac`, or throws.
     Takes `hash-algo` ∈ #{:md5 :sha-1 :sha-256 :sha-512}."
     ^javax.crypto.Mac [hash-algo]
     (case hash-algo
-      :md5     @hmac-md5_
-      :sha-1   @hmac-sha-1_
-      :sha-256 @hmac-sha-256_
-      :sha-512 @hmac-sha-512_
+      :md5     (.get tl:hmac-md5)
+      :sha-1   (.get tl:hmac-sha-1)
+      :sha-256 (.get tl:hmac-sha-256)
+      :sha-512 (.get tl:hmac-sha-512)
       (truss/unexpected-arg! hash-algo
         {:expected #{:md5 :sha-1 :sha-256 :sha-512}
          :context  `as-hmac}))))
@@ -253,18 +253,18 @@
 (def ^:const default-sym-key-len "256 bits" 32)
 (def ^:const min-iv-len          "128 bits" 16)
 
-(let [cipher-aes-gcm_    (enc/thread-local (javax.crypto.Cipher/getInstance "AES/GCM/NoPadding"))
-      cipher-aes-cbc_    (enc/thread-local (javax.crypto.Cipher/getInstance "AES/CBC/PKCS5Padding"))
-      chacha20-poly1305_ (enc/thread-local (javax.crypto.Cipher/getInstance "ChaCha20-Poly1305"))]
+(let [tl:cipher-aes-gcm    (enc/threadlocal (javax.crypto.Cipher/getInstance "AES/GCM/NoPadding"))
+      tl:cipher-aes-cbc    (enc/threadlocal (javax.crypto.Cipher/getInstance "AES/CBC/PKCS5Padding"))
+      tl:chacha20-poly1305 (enc/threadlocal (javax.crypto.Cipher/getInstance "ChaCha20-Poly1305"))]
 
   (defn- as-symmetric-cipher
     "Returns `javax.crypto.Cipher`, or throws.
     Takes `sym-cipher-algo` ∈ #{:aes-gcm :aes-cbc :chacha20-poly1305}."
     ^javax.crypto.Cipher [sym-cipher-algo]
     (case sym-cipher-algo
-      :aes-gcm @cipher-aes-gcm_
-      :aes-cbc @cipher-aes-cbc_
-      :chacha20-poly1305 @chacha20-poly1305_
+      :aes-gcm (.get tl:cipher-aes-gcm)
+      :aes-cbc (.get tl:cipher-aes-cbc)
+      :chacha20-poly1305 (.get tl:chacha20-poly1305)
       (truss/unexpected-arg! sym-cipher-algo
         {:expected #{:aes-gcm :aes-cbc :chacha20-poly1305}
          :context  `as-symmetric-cipher}))))
@@ -561,12 +561,9 @@
 
     kpg))
 
-(let [;; Avoid thread-locals here since we want fresh *srng*
-      ;; kpb-get*
-      ;; (fn [algo-name algo-params]
-      ;;   (enc/thread-local (kpg-get algo-name algo-params)))
-      ;;
-      ;; kpg-rsa-1024_ (kpg-get* "RSA" 1024) ; etc.
+(let [;; Avoid ThreadLocals here since we want fresh *srng*
+      ;; kpb-get* (fn [algo-name algo-params] (enc/threadlocal (kpg-get algo-name algo-params)))
+      ;; tl:kpg-rsa-1024 (kpg-get* "RSA" 1024) ; etc.
       ]
 
   (defn- as-keypair-generator
@@ -776,9 +773,9 @@
 
 ;;;;
 
-(let [kf-rsa_ (enc/thread-local (java.security.KeyFactory/getInstance "RSA"))
-      kf-dh_  (enc/thread-local (java.security.KeyFactory/getInstance "DiffieHellman"))
-      kf-ec_  (enc/thread-local (java.security.KeyFactory/getInstance "EC"))]
+(let [tl:kf-rsa (enc/threadlocal (java.security.KeyFactory/getInstance "RSA"))
+      tl:kf-dh  (enc/threadlocal (java.security.KeyFactory/getInstance "DiffieHellman"))
+      tl:kf-ec  (enc/threadlocal (java.security.KeyFactory/getInstance "EC"))]
 
   (defn- as-key-factory
     "Returns `java.security.KeyFactory`, or throws.
@@ -786,9 +783,9 @@
     ^java.security.KeyFactory
     [key-algo]
     (case key-algo
-      (:rsa :rsa-1024 :rsa-2048 :rsa-3072 :rsa-4096)  @kf-rsa_
-      (:dh   :dh-1024  :dh-2048  :dh-3072  :dh-4096)  @kf-dh_
-      (:ec :ec-secp256r1 :ec-secp384r1 :ec-secp521r1) @kf-ec_
+      (:rsa :rsa-1024 :rsa-2048 :rsa-3072 :rsa-4096)  (.get tl:kf-rsa)
+      (:dh   :dh-1024  :dh-2048  :dh-3072  :dh-4096)  (.get tl:kf-dh)
+      (:ec :ec-secp256r1 :ec-secp384r1 :ec-secp521r1) (.get tl:kf-ec)
 
       (truss/unexpected-arg! key-algo
         {:expected #{:rsa :rsa-<nbits> :dh :dh-<nbits> :ec :ec-<curve>}
@@ -881,17 +878,14 @@
 
 ;;;; Asymmetric ciphers using 1 keypair
 
-(let [cipher-rsa-oaep-sha-256-mgf1_
-      (enc/thread-local
-        (javax.crypto.Cipher/getInstance
-          "RSA/ECB/OAEPWithSHA-256AndMGF1Padding"))]
+(let [tl:cipher-rsa-oaep-sha-256-mgf1 (enc/threadlocal (javax.crypto.Cipher/getInstance "RSA/ECB/OAEPWithSHA-256AndMGF1Padding"))]
 
   (defn- as-asymmetric-cipher
     "Returns `javax.crypto.Cipher`, or throws.
     Takes `asym-cipher-algo` ∈ #{:rsa-oaep-sha-256-mgf1}."
     ^javax.crypto.Cipher [asym-cipher-algo]
     (case asym-cipher-algo
-      :rsa-oaep-sha-256-mgf1 @cipher-rsa-oaep-sha-256-mgf1_
+      :rsa-oaep-sha-256-mgf1 (.get tl:cipher-rsa-oaep-sha-256-mgf1)
       (truss/unexpected-arg! asym-cipher-algo
         {:expected #{:rsa-oaep-sha-256-mgf1}
          :context  `as-asymmetric-cipher}))))
@@ -930,9 +924,9 @@
 ;;   Ref. <https://stackoverflow.com/a/58993471/1982742>,
 ;;        <https://crypto.stackexchange.com/a/1026/106804>
 
-(let [ka-dh_       (enc/thread-local (javax.crypto.KeyAgreement/getInstance "DiffieHellman")) ; PKCS #3
-      ka-ecdh_     (enc/thread-local (javax.crypto.KeyAgreement/getInstance "ECDH")) ; RFC 3278
-      ;; ka-ecmqv_ (enc/thread-local (javax.crypto.KeyAgreement/getInstance "ECMQV"))
+(let [tl:ka-dh       (enc/threadlocal (javax.crypto.KeyAgreement/getInstance "DiffieHellman")) ; PKCS #3
+      tl:ka-ecdh     (enc/threadlocal (javax.crypto.KeyAgreement/getInstance "ECDH")) ; RFC 3278
+      ;; tl:ka-ecmqv (enc/threadlocal (javax.crypto.KeyAgreement/getInstance "ECMQV"))
       ]
 
   (defn as-key-agreement
@@ -940,8 +934,8 @@
     Takes `ka-algo` ∈ #{:dh :ecdh}."
     ^javax.crypto.KeyAgreement [ka-algo]
     (case ka-algo
-      :dh   @ka-dh_
-      :ecdh @ka-ecdh_
+      :dh   (.get tl:ka-dh)
+      :ecdh (.get tl:ka-ecdh)
       (truss/unexpected-arg! ka-algo
         {:expected #{:dh :ecdh}
          :context  `as-key-agreement}))))
@@ -966,20 +960,20 @@
 
 ;;;; Signatures
 
-(let [sig-sha-256-rsa_   (enc/thread-local (java.security.Signature/getInstance "SHA256withRSA"))
-      sig-sha-512-rsa_   (enc/thread-local (java.security.Signature/getInstance "SHA512withRSA"))
-      sig-sha-256-ecdsa_ (enc/thread-local (java.security.Signature/getInstance "SHA256withECDSA"))
-      sig-sha-512-ecdsa_ (enc/thread-local (java.security.Signature/getInstance "SHA512withECDSA"))]
+(let [tl:sig-sha-256-rsa   (enc/threadlocal (java.security.Signature/getInstance "SHA256withRSA"))
+      tl:sig-sha-512-rsa   (enc/threadlocal (java.security.Signature/getInstance "SHA512withRSA"))
+      tl:sig-sha-256-ecdsa (enc/threadlocal (java.security.Signature/getInstance "SHA256withECDSA"))
+      tl:sig-sha-512-ecdsa (enc/threadlocal (java.security.Signature/getInstance "SHA512withECDSA"))]
 
   (defn- as-signature
     "Returns `java.security.Signature` or throws.
     Takes `sig-algo` ∈ #{:sha-<nbits>-rsa :sha-<nbits>-ecdsa}."
     ^java.security.Signature [sig-algo]
     (case sig-algo
-      :sha-256-rsa   @sig-sha-256-rsa_
-      :sha-512-rsa   @sig-sha-512-rsa_
-      :sha-256-ecdsa @sig-sha-256-ecdsa_
-      :sha-512-ecdsa @sig-sha-512-ecdsa_
+      :sha-256-rsa   (.get tl:sig-sha-256-rsa)
+      :sha-512-rsa   (.get tl:sig-sha-512-rsa)
+      :sha-256-ecdsa (.get tl:sig-sha-256-ecdsa)
+      :sha-512-ecdsa (.get tl:sig-sha-512-ecdsa)
       (truss/unexpected-arg! sig-algo
         {:expected #{:sha-<nbits>-rsa :sha-<nbits>-ecdsa}
          :context  `as-signature}))))
