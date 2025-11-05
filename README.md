@@ -1,5 +1,8 @@
 <a href="https://www.taoensso.com/clojure" title="More stuff by @ptaoussanis at www.taoensso.com"><img src="https://www.taoensso.com/open-source.png" alt="Taoensso open source" width="340"/></a>  
-[**API**][cljdoc] | [**Wiki**][GitHub wiki] | [Latest releases](#latest-releases) | [Slack channel][]
+[**API**][cljdoc] | [**Wiki**][GitHub wiki] | [Slack][] | Latest release: [v1.0.0-RC1](../../releases/tag/v1.0.0-RC1) (2024-02-26)
+
+[![Clj tests][Clj tests SVG]][Clj tests URL]
+[![Graal tests][Graal tests SVG]][Graal tests URL]
 
 # Tempel
 
@@ -12,15 +15,6 @@ More than another collection of crypto utils, Tempel offers a **coherent and opi
 Its [tiny API](../../wiki/1-Getting-started#api-overview) and focus on **smart keychains** helps shield you from unnecessary and error-prone complexity, greatly simplifying the most common data security needs.
 
 ⚠️ Tempel is [NOT intended](../../wiki/3-Faq#can-i-decrypt-tempel-data-with-other-tools) for interop with other cryptographic tools/APIs!
-
-## Latest release/s
-
-- `2024-02-26` `v1.0.0-RC1`: [release info](../../releases/tag/v1.0.0-RC1)
-
-[![Clj tests][Clj tests SVG]][Clj tests URL]
-[![Graal tests][Graal tests SVG]][Graal tests URL]
-
-See [here][GitHub releases] for earlier releases.
 
 ## Why Tempel?
 
@@ -85,20 +79,7 @@ See for intro and usage:
 
 - [Wiki][GitHub wiki] (getting started, usage, etc.)
 - API reference via [cljdoc][cljdoc]
-- Support via [Slack channel][] or [GitHub issues][]
-
-## Roadmap
-
-Tempel has a **fixed scope**, and is **fully complete**. I'm happy with its design and implementation, and believe it meets all its objectives in its current form. I'm not anticipating significant changes.
-
-Still, given the sensitivity of the problem domain, I plan to approach Tempel's official stable release as a phased rollout to allow time for feedback before locking things down:
-
-| Phase | Date    | Release      | Appropriate for                           |
-| :---: | :------ | :----------- | :---------------------------------------- |
-|  👉   | 2024-02 | `v1.0-RC1`   | Staging, with ephemeral or low-value data |
-|       | 2025-05 | `v1.0` final | Production, with real data                |
-
-`v1.0` final will be considered "**done**"- the library is expected to need+see only minimal maintance from that point.
+- Support via [Slack][] or [GitHub issues][]
 
 ## Disclaimer
 
@@ -126,7 +107,7 @@ Licensed under [EPL 1.0](LICENSE.txt) (same as Clojure).
 [GitHub releases]: ../../releases
 [GitHub issues]:   ../../issues
 [GitHub wiki]:     ../../wiki
-[Slack channel]:   https://www.taoensso.com/tempel/slack
+[Slack]:   https://www.taoensso.com/tempel/slack
 
 [Peter Taoussanis]: https://www.taoensso.com
 [sponsor]:          https://www.taoensso.com/sponsor
