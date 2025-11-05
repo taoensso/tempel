@@ -1,10 +1,12 @@
 # Disclaimer
 
-**Important**: while Tempel has been written and tested with care, the nature of the problem domain inevitably means that bugs and/or misuse can be **especially harmful and/or easy to make**.
+⚠️ **Important**: this software is provided *"as is"* and **without warranty of any kind**. You use it **at your own risk**!
 
-Bugs and/or misuse could lead to [security vulnerabilities](./3-FAQ#how-secure-is-tempel) or even [permanent data loss](./3-FAQ#is-there-a-risk-of-data-loss).
+While Tempel has been written and tested with care, the nature of the problem domain inevitably means that it can be **easy to misuse** and **sensitive to bugs**.
 
-Please be **very careful** evaluating Tempel and/or other cryptographic libraries/frameworks before use, especially new libraries/frameworks like Tempel!
+Misuse or bugs can be **especially harmful** - potentially leading to [security vulnerabilities](../../wiki/3-FAQ#how-secure-is-tempel) or even [permanent data loss](../../wiki/3-FAQ#is-there-a-risk-of-data-loss)!
+
+Whenever you use cryptographic libraries/frameworks (including Tempel), please **test very carefully** and always **back up important data**!
 
 # Setup
 

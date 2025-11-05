@@ -226,7 +226,7 @@
 
       Note that the 256 bit AES cipher is not necessarily stronger than the 128
       bit, and may even be weaker due to possible unique attack vectors
-      (Ref. <https://goo.gl/qU4CCV>).
+      (Ref. <https://www.schneier.com/blog/archives/2009/07/another_new_aes.html>).
 
     `:keypair-creator` ∈ #{<function> <delay>}
       The function to use when generating asymmetric keypairs.
