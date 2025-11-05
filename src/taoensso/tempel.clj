@@ -446,7 +446,7 @@
               ?key-id   (bytes/read-dynamic-?str in)]
           (enc/assoc-when
             {:kind :encrypted-keychain, :version 1,
-             :keychain (keys/keychain-restore nil ba-kc-pub)}
+             :keychain (keys/keychain-thaw nil ba-kc-pub)}
             :ba-aad          ?ba-aad
             :key-id          ?key-id
             :has-hmac?       has-hmac?
@@ -463,6 +463,22 @@
     (enc/assoc-some (dissoc pd :ba-aad :ba-content)
       :aad (bytes/?utf8-ba->?str ba-aad)
       :cnt (bytes/?utf8-ba->?str ba-content))))
+
+(defn keychain-freeze-public
+  "Takes a `KeyChain` and serializes any public keys it contains
+  to a storable byte[]. Returns the byte[].
+
+  Thaw (deserialize) output with: `keychain-thaw-public`."
+  ^bytes [keychain]
+  (get (keys/keychain-freeze keychain) :ba-kc-pub))
+
+(defn keychain-thaw-public
+  "Complement of `keychain-freeze-public`.
+  Takes a serialized byte[] of public keys and returns
+  a `KeyChain` that contains those public keys."
+  [ba-kc-pub] (keys/keychain-thaw nil ba-kc-pub))
+
+(comment (let [kc (keychain)] (enc/submap? @kc @(keychain-thaw-public (keychain-freeze-public kc)))))
 
 ;;;; Cipher API
 
