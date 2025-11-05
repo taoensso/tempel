@@ -17,7 +17,7 @@ Its [tiny API](../../wiki/1-Getting-started#api-overview) and focus on **smart k
 
 - `2024-02-26` `v1.0.0-RC1`: [release info](../../releases/tag/v1.0.0-RC1)
 
-[![Main tests][Main tests SVG]][Main tests URL]
+[![Clj tests][Clj tests SVG]][Clj tests URL]
 [![Graal tests][Graal tests SVG]][Graal tests URL]
 
 See [here][GitHub releases] for earlier releases.
@@ -139,7 +139,7 @@ Licensed under [EPL 1.0](LICENSE.txt) (same as Clojure).
 [Clojars SVG]: https://img.shields.io/clojars/v/com.taoensso/tempel.svg
 [Clojars URL]: https://clojars.org/com.taoensso/tempel
 
-[Main tests SVG]:  https://github.com/taoensso/tempel/actions/workflows/main-tests.yml/badge.svg
-[Main tests URL]:  https://github.com/taoensso/tempel/actions/workflows/main-tests.yml
+[Clj tests SVG]:  https://github.com/taoensso/tempel/actions/workflows/clj-tests.yml/badge.svg
+[Clj tests URL]:  https://github.com/taoensso/tempel/actions/workflows/clj-tests.yml
 [Graal tests SVG]: https://github.com/taoensso/tempel/actions/workflows/graal-tests.yml/badge.svg
 [Graal tests URL]: https://github.com/taoensso/tempel/actions/workflows/graal-tests.yml
