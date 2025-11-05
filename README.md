@@ -1,5 +1,5 @@
 <a href="https://www.taoensso.com/clojure" title="More stuff by @ptaoussanis at www.taoensso.com"><img src="https://www.taoensso.com/open-source.png" alt="Taoensso open source" width="340"/></a>  
-[**API**][cljdoc] | [**Wiki**][GitHub wiki] | [Slack][] | Latest release: [v1.0.0-RC1](../../releases/tag/v1.0.0-RC1) (2024-02-26)
+[**API**][cljdoc] | [**Wiki**][GitHub wiki] | [Slack][] | Latest release: [v1.0.0](../../releases/tag/v1.0.0) (2025-11-05)
 
 [![Clj tests][Clj tests SVG]][Clj tests URL]
 [![Graal tests][Graal tests SVG]][Graal tests URL]
@@ -14,7 +14,7 @@ More than another collection of crypto utils, Tempel offers a **coherent and opi
 
 Its [tiny API](../../wiki/1-Getting-started#api-overview) and focus on **smart keychains** helps shield you from unnecessary and error-prone complexity, greatly simplifying the most common data security needs.
 
-⚠️ Tempel is [NOT intended](../../wiki/3-Faq#can-i-decrypt-tempel-data-with-other-tools) for interop with other cryptographic tools/APIs!
+👉 Tempel is [NOT intended](../../wiki/3-Faq#can-i-decrypt-tempel-data-with-other-tools) for interop with other cryptographic tools/APIs!
 
 ## Why Tempel?
 
@@ -26,6 +26,16 @@ Its [tiny API](../../wiki/1-Getting-started#api-overview) and focus on **smart k
 - Simple **key management API** for password resets, key rotations, etc.
 - Extensive **beginner-oriented** [documentation](#documentation), docstrings, and error messages.
 - **Comprehensive test suite** with >60k unit tests.
+
+## Disclaimer
+
+⚠️ **Important**: this software is provided *"as is"* and **without warranty of any kind**. You use it **at your own risk**!
+
+While Tempel has been written and tested with care, the nature of the problem domain inevitably means that it can be **easy to misuse** and **sensitive to bugs**.
+
+Misuse or bugs can be **especially harmful** - potentially leading to [security vulnerabilities](../../wiki/3-FAQ#how-secure-is-tempel) or even [permanent data loss](../../wiki/3-FAQ#is-there-a-risk-of-data-loss)!
+
+Whenever you use cryptographic libraries/frameworks (including Tempel), please **test very carefully** and always **back up important data**!
 
 ## Video demo
 
@@ -81,17 +91,9 @@ See for intro and usage:
 - API reference via [cljdoc][cljdoc]
 - Support via [Slack][] or [GitHub issues][]
 
-## Disclaimer
-
-**Important**: while Tempel has been written and tested with care, the nature of the problem domain inevitably means that bugs and/or misuse can be **especially harmful and/or easy to make**.
-
-Bugs and/or misuse could lead to [security vulnerabilities](../../wiki/3-FAQ#how-secure-is-tempel) or even [permanent data loss](../../wiki/3-FAQ#is-there-a-risk-of-data-loss).
-
-Please be **very careful** evaluating Tempel and/or other cryptographic libraries/frameworks before use, especially new libraries/frameworks like Tempel!
-
 ## Security
 
-See [here](../../security) for **security advisories** and/or to **report security vulnerabilities**.
+See [here](../../security) for **security advisories** and/or to **report possible security vulnerabilities**.
 
 ## Funding
 

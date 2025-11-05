@@ -2,6 +2,35 @@ This project uses [**Break Versioning**](https://www.taoensso.com/break-versioni
 
 ---
 
+# `v1.0.0` (2025-11-05)
+
+- **Dependency**: [on Clojars](https://clojars.org/com.taoensso/tempel/versions/1.0.0)
+- **Versioning**: [Break Versioning](https://www.taoensso.com/break-versioning)
+
+At long last- this is the first **stable v1** release of Tempel! 🎉
+
+It is functionally identical to (and bidirectionally data compatible with) v1.0.0-RC1 (2024-02-26), but now marked as "production ready".
+
+## Disclaimer
+
+⚠️ **Important**: this software is provided *"as is"* and **without warranty of any kind**. You use it **at your own risk**!
+
+While Tempel has been written and tested with care, the nature of the problem domain inevitably means that it can be **easy to misuse** and **sensitive to bugs**.
+
+Misuse or bugs can be **especially harmful** - potentially leading to [security vulnerabilities](../../wiki/3-FAQ#how-secure-is-tempel) or even [permanent data loss](../../wiki/3-FAQ#is-there-a-risk-of-data-loss)!
+
+Whenever you use cryptographic libraries/frameworks (including Tempel), please **test very carefully** and always **back up important data**!
+
+Please report any unexpected issues! Possible security issues may be responsibly reported [here](https://github.com/taoensso/tempel/security), thank you! 🙏
+
+## Since `v1.0.0-RC1` (2024-02-26)
+
+- Use [contextual Truss exceptions](https://github.com/taoensso/truss#contextual-exceptions) for all errors
+- Documentation and example improvements
+- Update dependencies
+
+---
+
 # `v1.0.0-RC1` (2024-02-26)
 
 > **Dep/s**: Tempel is [on Clojars](https://clojars.org/com.taoensso/tempel/versions/1.0.0-RC1).  
