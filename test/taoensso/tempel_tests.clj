@@ -16,6 +16,13 @@
   (remove-ns      'taoensso.tempel-tests)
   (test/run-tests 'taoensso.tempel-tests))
 
+;;;; Utils
+
+(defn keychain->pub-keys [kc] (into #{} (comp (map :key-pub)                        (filter some?)) (vals (enc/force-ref kc))))
+(defn keychain->prv-keys [kc] (into #{} (comp (map #(or (:key-sym %) (:key-prv %))) (filter some?)) (vals (enc/force-ref kc))))
+
+(comment (keychain->pub-keys (keys/keychain)))
+
 ;;;; Implementation
 
 (deftest _headers
@@ -368,7 +375,18 @@
       (is (= (kci kc1) {:n-sym 1, :n-prv 2, :n-pub 2, :secret? true}))
       (is (= (kci kc3) {:n-sym 1, :n-prv 1, :n-pub 2, :secret? true}))])
 
-   (testing "Serialization and encryption"
+   (testing "Serialization of public keys in KeyChains"
+     (let [kc1 (keys/keychain {:empty? true})
+           kc2 (keys/keychain {:symmetric-keys      [#_1 :random]
+                               :asymmetric-keypairs [#_2 :rsa-1024 #_3 :dh-1024 #_4 :ec-secp256r1]})]
+       (every? boolean
+         (flatten
+           (for [kc [kc1 kc2]]
+             (let [kc-thawed (tempel/keychain-thaw-public (tempel/keychain-freeze-public kc))]
+               [(is (empty? (keychain->prv-keys kc-thawed))                         "No private keys in public KeyChain")
+                (is (=      (keychain->pub-keys kc-thawed) (keychain->pub-keys kc)) "All public keys in public KeyChain")]))))))
+
+   (testing "Serialization of encrypted KeyChains"
      (let [kc (->
                 (keys/keychain {:symmetric-keys      [#_1 :random]
                                 :asymmetric-keypairs [#_2 :rsa-1024 #_3 :dh-1024 #_4 :ec-secp256r1]})
@@ -405,10 +423,9 @@
                 (is (= (set (keys (get @kc-dec "c"))) #{:key-prv :key-algo :priority}))
 
                 (is (= (keys/keychain-decrypt ba-enc !key-opts) nil)             "Bad key")
-                (is (= (kci (:keychain (pd ba-enc))) {:n-pub 4, :secret? false}) "Public keychain in public data")
+                (is (= (kci (:keychain (pd ba-enc))) {:n-pub 4, :secret? false}) "Public KeyChain is in public data")
 
-                (is (every? nil? (mapv #(or (:key-sym %) (:key-prv %)) (vals @(:keychain (pd ba-enc)))))
-                  "No private data in public keychain")]))))))])
+                (is (empty? (keychain->prv-keys (:keychain (pd ba-enc)))) "No private keys in public KeyChain")]))))))])
 
 ;;;; Core API
 

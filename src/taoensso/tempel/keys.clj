@@ -265,7 +265,7 @@
     (delay (mkc-freeze  m-keychain))
     ?meta))
 
-(defn keychain-restore
+(defn keychain-thaw
   "Thaws `KeyChain` from frozen byte[]s."
   ([ba-kc-prv ba-kc-pub] (-keychain nil (mkc-thaw ba-kc-prv ba-kc-pub)))
   ([ba-kc_             ] (-keychain nil (mkc-thaw ba-kc_))))
@@ -1162,7 +1162,7 @@
             (let [?ba-kc-prv (bytes/read-dynamic-?ba in)
                   ?ba-ucnt   (bytes/read-dynamic-?ba in) ; User content
                   _          (df/read-resv!          in)
-                  keychain   (keychain-restore ?ba-kc-prv ?ba-kc-pub)]
+                  keychain   (keychain-thaw ?ba-kc-prv ?ba-kc-pub)]
 
               (case return
                 :keychain   keychain
