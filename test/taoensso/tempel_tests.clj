@@ -388,26 +388,27 @@
        ;; More tests (incl. AAD, AKM, etc.) are in later section for core API
 
        (every? boolean
-         (for [[key-opts !key-opts]
-               [[{:password  "pwd"} {:password  "!pwd"}]
-                [{:key-sym  ba-key} {:key-sym  ba-!key}]
-                [{:key-sym key-sym} {:key-sym !key-sym}]]]
+         (flatten
+           (for [[key-opts !key-opts]
+                 [[{:password  "pwd"} {:password  "!pwd"}]
+                  [{:key-sym  ba-key} {:key-sym  ba-!key}]
+                  [{:key-sym key-sym} {:key-sym !key-sym}]]]
 
-           (let [ba-enc (keys/keychain-encrypt kc     key-opts)
-                 kc-dec (keys/keychain-decrypt ba-enc key-opts)]
+             (let [ba-enc (keys/keychain-encrypt kc     key-opts)
+                   kc-dec (keys/keychain-decrypt ba-enc key-opts)]
 
-             [(is (= (kci kc)     {:n-sym 2, :n-prv 5, :n-pub 4, :secret? true}))
-              (is (= (kci kc-dec) {:n-sym 2, :n-prv 5, :n-pub 4, :secret? true}))
-              (is (=  kc  kc-dec))
+               [(is (= (kci kc)     {:n-sym 2, :n-prv 5, :n-pub 4, :secret? true}))
+                (is (= (kci kc-dec) {:n-sym 2, :n-prv 5, :n-pub 4, :secret? true}))
+                (is (=  kc  kc-dec))
 
-              (is (=            (get @kc-dec "d")   {}) "Keep key-ids for empty entries")
-              (is (= (set (keys (get @kc-dec "c"))) #{:key-prv :key-algo :priority}))
+                (is (=            (get @kc-dec "d")   {}) "Keep key-ids for empty entries")
+                (is (= (set (keys (get @kc-dec "c"))) #{:key-prv :key-algo :priority}))
 
-              (is (= (keys/keychain-decrypt ba-enc !key-opts) nil)             "Bad key")
-              (is (= (kci (:keychain (pd ba-enc))) {:n-pub 4, :secret? false}) "Public keychain in public data")
+                (is (= (keys/keychain-decrypt ba-enc !key-opts) nil)             "Bad key")
+                (is (= (kci (:keychain (pd ba-enc))) {:n-pub 4, :secret? false}) "Public keychain in public data")
 
-              (is (every? nil? (mapv #(or (:key-sym %) (:key-prv %)) (vals @(:keychain (pd ba-enc)))))
-                "No private data in public keychain")])))))])
+                (is (every? nil? (mapv #(or (:key-sym %) (:key-prv %)) (vals @(:keychain (pd ba-enc)))))
+                  "No private data in public keychain")]))))))])
 
 ;;;; Core API
 
@@ -617,24 +618,25 @@
            kc2 (-> (keys/keychain) (keys/keychain-add-asymmetric-keypair :rsa-1024 {:key-id "a"}))]
 
        [(every? boolean
-          (for [cnt ["short" (apply str (repeat 128 "x"))]]
-            (let [ba-cnt (as-ba cnt)]
-              [(is= (dec (enc ba-cnt kc1 {              }) kc1 {               }) {:cnt cnt            } "-AKM, -AAD")
-               (is= (dec (enc ba-cnt kc1 {:ba-akm ba-akm}) kc1 {:ba-akm ba-akm }) {:cnt cnt            } "+AKM, -AAD")
-               (is= (dec (enc ba-cnt kc1 {:ba-aad ba-aad}) kc1 {               }) {:cnt cnt, :aad "aad"} "-AKM, +AAD")
-               (is= (dec (enc ba-cnt kc1 {:ba-aad ba-aad
-                                          :ba-akm ba-akm}) kc1 {:ba-akm ba-akm }) {:cnt cnt, :aad "aad"} "+AKM, +AAD")
+          (flatten
+            (for [cnt ["short" (apply str (repeat 128 "x"))]]
+              (let [ba-cnt (as-ba cnt)]
+                [(is= (dec (enc ba-cnt kc1 {              }) kc1 {               }) {:cnt cnt            } "-AKM, -AAD")
+                 (is= (dec (enc ba-cnt kc1 {:ba-akm ba-akm}) kc1 {:ba-akm ba-akm }) {:cnt cnt            } "+AKM, -AAD")
+                 (is= (dec (enc ba-cnt kc1 {:ba-aad ba-aad}) kc1 {               }) {:cnt cnt, :aad "aad"} "-AKM, +AAD")
+                 (is= (dec (enc ba-cnt kc1 {:ba-aad ba-aad
+                                            :ba-akm ba-akm}) kc1 {:ba-akm ba-akm }) {:cnt cnt, :aad "aad"} "+AKM, +AAD")
 
-               (is= (dec (enc ba-cnt kc1 {              }) kc2 {               }) {:err #{"Decryption error" "Message is larger than modulus" "Padding error in decryption"}} "Bad key")
-               (is= (dec (enc ba-cnt kc1 {:ba-akm ba-akm}) kc1 {:ba-akm ba-!akm}) {:err "Unexpected HMAC" #_"Tag mismatch"}                                                   "Bad AKM")
+                 (is= (dec (enc ba-cnt kc1 {              }) kc2 {               }) {:err #{"Decryption error" "Message is larger than modulus" "Padding error in decryption"}} "Bad key")
+                 (is= (dec (enc ba-cnt kc1 {:ba-akm ba-akm}) kc1 {:ba-akm ba-!akm}) {:err "Unexpected HMAC" #_"Tag mismatch"}                                                   "Bad AKM")
 
-               (is= (pd  (enc ba-cnt kc1 {              })) {:kind :encrypted-with-1-keypair, :key-algo :rsa-1024, :key-id "a"            } "Public data")
-               (is= (pd  (enc ba-cnt kc1 {:ba-aad ba-aad})) {:kind :encrypted-with-1-keypair, :key-algo :rsa-1024, :key-id "a", :aad "aad"} "Public data +AAD")
+                 (is= (pd  (enc ba-cnt kc1 {              })) {:kind :encrypted-with-1-keypair, :key-algo :rsa-1024, :key-id "a"            } "Public data")
+                 (is= (pd  (enc ba-cnt kc1 {:ba-aad ba-aad})) {:kind :encrypted-with-1-keypair, :key-algo :rsa-1024, :key-id "a", :aad "aad"} "Public data +AAD")
 
-               (is= (dec (enc ba-cnt kc1 {:backup-key master-kc               }) kc1 {                     }) {:cnt cnt} "+Backup, use primary, -AKM, -AAD")
-               (is= (dec (enc ba-cnt kc1 {:backup-key master-kc :ba-akm ba-akm}) kc1 {:ba-akm ba-akm       }) {:cnt cnt} "+Backup, use primary, +AKM, -AAD")
-               (is= (dec (enc ba-cnt kc1 {:backup-key master-kc               }) nil {:backup-key master-kc}) {:cnt cnt} "+Backup, use backup,  -AKM, -AAD")
-               (is= (dec (enc ba-cnt kc1 {:backup-key master-kc :ba-akm ba-akm}) nil {:backup-key master-kc}) {:cnt cnt} "+Backup, use backup,  +AKM, -AAD")])))
+                 (is= (dec (enc ba-cnt kc1 {:backup-key master-kc               }) kc1 {                     }) {:cnt cnt} "+Backup, use primary, -AKM, -AAD")
+                 (is= (dec (enc ba-cnt kc1 {:backup-key master-kc :ba-akm ba-akm}) kc1 {:ba-akm ba-akm       }) {:cnt cnt} "+Backup, use primary, +AKM, -AAD")
+                 (is= (dec (enc ba-cnt kc1 {:backup-key master-kc               }) nil {:backup-key master-kc}) {:cnt cnt} "+Backup, use backup,  -AKM, -AAD")
+                 (is= (dec (enc ba-cnt kc1 {:backup-key master-kc :ba-akm ba-akm}) nil {:backup-key master-kc}) {:cnt cnt} "+Backup, use backup,  +AKM, -AAD")]))))
 
         (is (:passed? (combinatorial-roundtrip-tests! "roundtrip with 1 keypair" :rand-bytes enc dec kc1 kc1 kc2)))]))
 
