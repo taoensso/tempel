@@ -2,6 +2,17 @@ This project uses [**Break Versioning**](https://www.taoensso.com/break-versioni
 
 ---
 
+# `v1.1.0` (2025-12-10)
+
+- **Dependency**: [on Clojars](https://clojars.org/com.taoensso/tempel/versions/1.1.0)
+- **Versioning**: [Break Versioning](https://www.taoensso.com/break-versioning)
+
+This is a **minor maintenance release** that should be a safe upgrade for folks on `v1.0.0`.
+
+It introduces [new utils](https://github.com/taoensso/tempel/issues/15) to make it easier to de/serialize public parts of `KeyChain`s.
+
+---
+
 # `v1.0.0` (2025-11-05)
 
 - **Dependency**: [on Clojars](https://clojars.org/com.taoensso/tempel/versions/1.0.0)
