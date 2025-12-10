@@ -10,7 +10,7 @@
   :test-paths ["test" #_"src"]
 
   :dependencies
-  [[com.taoensso/encore "3.158.0"]]
+  [[com.taoensso/encore "3.159.0"]]
 
   :profiles
   {;; :default [:base :system :user :provided :dev]
@@ -37,7 +37,7 @@
      *unchecked-math*     false #_:warn-on-boxed}
 
     :dependencies
-    [[org.clojure/test.check "1.1.1"]]
+    [[org.clojure/test.check "1.1.2"]]
 
     :plugins
     [[lein-pprint  "1.3.2"]
