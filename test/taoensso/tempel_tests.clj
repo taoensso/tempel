@@ -280,7 +280,16 @@
 (defn ckid-pairs [xys]  (mapv ckid-pair xys))
 
 (deftest _keychains
-  [(is (keys/keychain? (keys/keychain)))
+  [(doseq [[add-key key] [[keys/keychain-add-symmetric-key :random]
+                          [keys/keychain-add-asymmetric-keypair (impl/keypair-create :ec-secp256r1)]]]
+
+     (let [kc (keys/keychain {:empty? true})
+           {:keys [keychain changed? key-id]} (add-key kc key {:return :map})]
+       [(is changed?)
+        (is (contains? @keychain key-id))
+        (is (not= kc    keychain))]))
+
+   (is (keys/keychain? (keys/keychain)))
    (is (= (kci (keys/keychain {:empty? true}))                                             {:secret? false}))
    (is (= (kci (keys/keychain {:symmetric-keys nil, :asymmetric-keypairs nil}))            {:secret? false}))
    (is (= (kci (keys/keychain {:only? true, :symmetric-keys [:random]}))                   {:secret? true, :n-sym 1}))
@@ -319,6 +328,12 @@
               (keys/keychain-add-symmetric-key :random))]
      [(is (= (ckids (keys/keychain-ckeys kc [:symmetric :key-sym])) ["2" "first"]))
       (is (ba= (-> (get @kc "first") :key-sym deref :key-sym) (as-ba (range 32))))])
+
+   (let [kc (->
+              (keys/keychain {:empty? true})
+              (keys/keychain-add-symmetric-key :random {:key-id "2"})
+              (keys/keychain-add-symmetric-key :random))]
+     (is (= (set (keys @kc)) #{"2" "3"}) "Auto key ids never replace existing keys"))
 
    (testing "Key priority by index path"
      (let [kc (keys/keychain {:symmetric-keys      [#_1 :random #_2 :random]

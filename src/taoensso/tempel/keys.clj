@@ -202,7 +202,11 @@
     :sym-cipher  {:key-sym [ck-e-sym-11 ck-a-sym-10]}})
 
 (defn- mkc-next-key-id [m-keychain]
-  (Integer/toString (inc (count m-keychain)) (min Character/MAX_RADIX 62)))
+  (loop [n (inc (count m-keychain))]
+    (let [key-id (Integer/toString n (min Character/MAX_RADIX 62))]
+      (if (contains? m-keychain key-id) ; Possible with custom ids
+        (recur (inc n))
+        key-id))))
 
 (defn- mkc-top-priority [m-keychain]
   (inc ^long
@@ -305,7 +309,7 @@
       :keychain kc2
       :map
       (enc/assoc-some
-        {:keychain keychain, :changed? (not (identical? kc1 kc2))}
+        {:keychain kc2, :changed? (not (identical? kc1 kc2))}
         :key-id @auto-key-id_)
 
       (truss/unexpected-arg! return
@@ -372,7 +376,7 @@
       :keychain kc2
       :map
       (enc/assoc-some
-        {:keychain keychain, :changed? (not (identical? kc1 kc2))}
+        {:keychain kc2, :changed? (not (identical? kc1 kc2))}
         :key-id @auto-key-id_)
 
       (truss/unexpected-arg! return
