@@ -212,20 +212,20 @@
       (is (=            (impl/keypair-info "str") nil))])])
 
 (deftest _asymmetric-cipher
-  (let [asym-cipher-algo :rsa-oaep-sha-256-mgf1
-        key-algo         :rsa-1024
+  (doseq [[asym-cipher-algo key-algo] [[:rsa-oaep-sha-256-mgf1 :rsa-1024] [:ecies-x25519-v1 :x25519]]]
+    (let [{:keys [ba-pub ba-prv]} (impl/keypair-create* key-algo)
+          ba-prv2 (:ba-prv (impl/keypair-create* key-algo))]
 
-        {:keys [ba-pub ba-prv]} (impl/keypair-create* key-algo)]
+      [(let [ba-cnt (as-ba "cnt")
+             ecnt   (impl/encrypt-asymmetric asym-cipher-algo key-algo ba-pub ba-cnt)]
+         (is (= (enc/utf8-ba->str (impl/decrypt-asymmetric asym-cipher-algo key-algo ba-prv ecnt)) "cnt"))
+         (is (throws? (impl/decrypt-asymmetric asym-cipher-algo key-algo ba-prv2 ecnt)) "Wrong key"))
 
-    [(let [ba-cnt (as-ba "cnt")
-           ecnt   (impl/encrypt-asymmetric asym-cipher-algo key-algo ba-pub ba-cnt)]
-       (is (= (enc/utf8-ba->str (impl/decrypt-asymmetric asym-cipher-algo key-algo ba-prv ecnt)) "cnt")))
-
-     (with-rand-data 62 1024
-       (fn [ba-cnt _?ba-aad]
-         (let [ba-ecnt (impl/encrypt-asymmetric asym-cipher-algo key-algo ba-pub ba-cnt)
-               ba-dcnt (impl/decrypt-asymmetric asym-cipher-algo key-algo ba-prv ba-ecnt)]
-           (is (bytes/ba= ba-cnt ba-dcnt)))))]))
+       (with-rand-data 62 1024
+         (fn [ba-cnt _?ba-aad]
+           (let [ba-ecnt (impl/encrypt-asymmetric asym-cipher-algo key-algo ba-pub ba-cnt)
+                 ba-dcnt (impl/decrypt-asymmetric asym-cipher-algo key-algo ba-prv ba-ecnt)]
+             (is (bytes/ba= ba-cnt ba-dcnt)))))])))
 
 (deftest _key-shared-create
   (doseq [[ka-algo key-algo] [[:dh :dh-1024] [:ecdh :ec-secp256r1] [:xdh :x25519]]]
@@ -1082,6 +1082,21 @@
     [(is (= kc rt))
      (is (ba= ba-cnt (tempel/signed (tempel/sign ba-cnt rt) kc {:return :ba-content})))
      (is (ba= ba-cnt (tempel/decrypt-with-2-keypairs (tempel/encrypt-with-2-keypairs ba-cnt kc kc) rt rt)))]))
+
+(deftest _core-ecies-x25519
+  (let [kc      (keys/keychain {:only? true, :asymmetric-keypairs [:x25519]})
+        kc-pub  (tempel/keychain-thaw-public (tempel/keychain-freeze-public kc))
+        kc-sym  (keys/keychain {:only? true, :symmetric-keys [:random]})
+        ba-enc  (tempel/encrypt-with-1-keypair ba-cnt kc-pub {:ba-aad ba-aad :ba-akm ba-akm :backup-key kc-pub})
+        low-pub (.generatePublic (java.security.KeyFactory/getInstance "XDH")
+                  (java.security.spec.XECPublicKeySpec. java.security.spec.NamedParameterSpec/X25519 BigInteger/ZERO))]
+    [(is (= (tempel/decrypt-with-1-keypair ba-enc kc {:ba-akm ba-akm :return :_test}) {:aad "aad" :cnt "cnt"}) "Hybrid")
+     (is (= (tempel/decrypt-with-1-keypair ba-enc nil {:backup-key kc :return :_test}) {:aad "aad" :cnt "cnt"}) "Backup (simple)")
+     (is (= kc-sym (tempel/keychain-decrypt (tempel/keychain-encrypt kc-sym {:key-pub kc-pub}) {:key-prv kc})) "Keychain :key-pub")
+     (is (throws? (tempel/encrypt-with-1-keypair ba-cnt low-pub)) "Low-order public key")
+     (let [kp-rsa (impl/keypair-create :rsa-1024)
+           ba-enc (tempel/encrypt-with-1-keypair ba-cnt kp-rsa {:backup-key kc-pub :asym-cipher-algo :rsa-oaep-sha-256-mgf1})]
+       (is (ba= ba-cnt (tempel/decrypt-with-1-keypair ba-enc nil {:backup-key kc})) "Mixed RSA + X25519 backup"))]))
 (deftest _keychain-decrypt-errors
   (is (nil? (tempel/keychain-decrypt (tempel/keychain-encrypt (keys/keychain) {:key-sym (as-ba 32)}) {:password "pwd"}))
     "Password given for keychain encrypted with key")

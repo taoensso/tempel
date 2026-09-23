@@ -351,7 +351,7 @@
         a signature from a trusted key). Always authenticate backup public keys.
 
       Key algorithm must support use as an asymmetric cipher.
-      Suitable algorithms: `:rsa-<nbits>`.
+      Suitable algorithms: `:rsa-<nbits>`, `:x25519`.
 
     `:backup-opts`
       When encrypting: encryption opts map used with `:backup-key`.
@@ -873,7 +873,7 @@
 
   Takes a `KeyChain` (see `keychain`) or `KeyPair` (see `keypair-create`).
   Key algorithm must support use as an asymmetric cipher.
-  Suitable algorithms: `:rsa-<nbits>`.
+  Suitable algorithms: `:rsa-<nbits>`, `:x25519`.
 
   Encryption uses receiver's asymmetric public  key.
   Decryption uses receiver's asymmetric private key.
@@ -885,7 +885,7 @@
     `:ba-akm` - See `help:akm`
 
     And see `*config*` for details:
-      `hash-algo`, `sym-cipher-algo`, `asym-cipher-algo`,
+      `hash-algo`, `sym-cipher-algo`,
       `embed-key-ids`, `backup-key`, `backup-opts`."
 
   #_(df/reference-data-formats :encrypted-with-1-keypair-<type>-v1)
@@ -893,7 +893,7 @@
    '([ba-content receiver-key-pub &
       [{:keys
         [ba-aad ba-akm
-         hash-algo sym-cipher-algo asym-cipher-algo
+         hash-algo sym-cipher-algo
          embed-key-ids? embed-hmac?
          backup-key backup-opts]}]])}
 
@@ -903,7 +903,7 @@
         {:as opts+
          :keys
          [ba-aad ba-akm
-          #_hash-algo #_sym-cipher-algo asym-cipher-algo
+          #_hash-algo #_sym-cipher-algo
           embed-key-ids? embed-hmac?
           backup-key #_backup-opts]}
         (get-opts+ opts)
@@ -912,7 +912,7 @@
         {:keys [key-pub key-id key-algo]} @ckey-pub
 
         ?ba-key-id       (when embed-key-ids? (bytes/?str->?utf8-ba key-id))
-        asym-cipher-algo (have (or asym-cipher-algo (get (impl/key-algo-info key-algo) :asym-cipher-algo)))
+        asym-cipher-algo (have (get (impl/key-algo-info key-algo) :asym-cipher-algo)) ; 1 per key algo
 
         simple-scheme? ; Optimization when encrypting symmetric keys, etc.
         (let [large-cnt?   (> (alength ^bytes ba-content) 62) ; RSA limitation
@@ -1008,7 +1008,7 @@
 
   Takes a `KeyChain` (see `keychain`) or `KeyPair` (see `keypair-create`).
   Key algorithm must support use as an asymmetric cipher.
-  Suitable algorithms: `:rsa-<nbits>`.
+  Suitable algorithms: `:rsa-<nbits>`, `:x25519`.
 
   Encryption uses receiver's asymmetric public  key.
   Decryption uses receiver's asymmetric private key.

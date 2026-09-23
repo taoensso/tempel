@@ -82,7 +82,8 @@
 
           (+entries :asym-cipher-algo
             {; 0 nil
-             1 :rsa-oaep-sha-256-mgf1})
+             1 :rsa-oaep-sha-256-mgf1
+             2 :ecies-x25519-v1})
 
           (+entries :sig-algo
             {; 0 nil

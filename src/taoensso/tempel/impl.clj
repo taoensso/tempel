@@ -30,7 +30,7 @@
 ;;
 ;; ✓ hash-algo        - #{:md5 :sha-1 :sha-256 :sha-512}
 ;; ✓ sym-cipher-algo  - #{:aes-gcm :aes-cbc :chacha20-poly1305}
-;; ✓ asym-cipher-algo - #{:rsa-oaep-sha-256-mgf1}
+;; ✓ asym-cipher-algo - #{:rsa-oaep-sha-256-mgf1 :ecies-x25519-v1}
 ;; ✓ sig-algo         - #{:sha-<nbits>-rsa :sha-<nbits>-rsa-pss :sha-<nbits>-ecdsa :ed25519}
 ;;
 ;; ✓ ka-algo          - #{:dh :ecdh :xdh}
@@ -488,9 +488,10 @@
      :asymmetric?         true}
 
     :x25519
-    {:kf-algo     :xdh
-     :ka-algo     :xdh
-     :asymmetric? true}
+    {:kf-algo          :xdh
+     :ka-algo          :xdh
+     :asym-cipher-algo :ecies-x25519-v1
+     :asymmetric?      true}
 
     :ed25519
     {:kf-algo     :eddsa
@@ -525,7 +526,7 @@
              :asymmetric?      (truss/ex-info! "Unexpected key algorithm: need asymmetric type"           {:key-algo         key-algo, :type {:actual :symmetric,  :expected :asymmetric}})
              :sig-algo         (truss/ex-info! "Unexpected key algorithm: need signature support"         {:key-algo {:given key-algo, :expected #{:rsa-<nbits> :ec-<curve> :ed25519}}})
              :ka-algo          (truss/ex-info! "Unexpected key algorithm: need key agreement support"     {:key-algo {:given key-algo, :expected #{:dh-<nbits>  :ec-<curve> :x25519}}})
-             :asym-cipher-algo (truss/ex-info! "Unexpected key algorithm: need asymmetric cipher support" {:key-algo {:given key-algo, :expected #{:rsa-<nbits>}}})
+             :asym-cipher-algo (truss/ex-info! "Unexpected key algorithm: need asymmetric cipher support" {:key-algo {:given key-algo, :expected #{:rsa-<nbits> :x25519}}})
              (do               (truss/ex-info! "Unexpected key algorithm: doesn't meet need"              {:key-algo         key-algo, :need need})))))
        key-algo)
 
@@ -929,23 +930,62 @@
         {:expected #{:rsa-oaep-sha-256-mgf1}
          :context  `as-asymmetric-cipher}))))
 
+(declare key-shared-create)
+
+(let [ba-label (as-ba "Tempel ECIES X25519 v1")
+      ba-iv    (byte-array 12) ; Zero IV is safe since each `ba-kek` is single-use
+      sck      (as-symmetric-cipher-kit :aes-gcm-256-v1)]
+
+  (defn- ecies-x25519-kek
+    "Returns 32-byte key from XDH shared secret via HKDF-SHA-256 (RFC 5869),
+    binding the ephemeral public key as `info`."
+    ^bytes [ba-ss ba-eph-pub]
+    (let [ba-prk (hmac :sha-256 ba-label ba-ss)] ; Extract
+      (hmac :sha-256 ba-prk ba-label ba-eph-pub (byte-array [1])))) ; Expand, 1 block
+
+  (defn- encrypt-ecies-x25519
+    "ECIES with fresh ephemeral X25519 key, HKDF-SHA-256, AES-256-GCM.
+    Returns `[eph-pub][ecnt]` byte[]."
+    ^bytes [key-pub ba-content]
+    (let [kp-eph     (keypair-create :x25519)
+          ba-eph-pub (.getEncoded (.getPublic kp-eph))
+          ba-kek     (ecies-x25519-kek (key-shared-create :xdh :x25519 kp-eph key-pub) ba-eph-pub)
+          ba-ecnt    (sck-encrypt sck ba-iv ba-kek ba-content nil)]
+
+      (bytes/with-out [out] [16 ba-eph-pub ba-ecnt]
+        (bytes/write-dynamic-ba out ba-eph-pub)
+        (bytes/write-dynamic-ba out ba-ecnt))))
+
+  (defn- decrypt-ecies-x25519
+    ^bytes [key-prv ba-encrypted-content]
+    (bytes/with-in [in bais] ba-encrypted-content
+      (let [ba-eph-pub (df/read-dynamic-ba in)
+            ba-ecnt    (df/read-dynamic-ba in)
+            _          (when (pos? (.available bais)) (truss/ex-info! "Unexpected trailing data" {}))
+            ba-kek     (ecies-x25519-kek (key-shared-create :xdh :x25519 key-prv ba-eph-pub) ba-eph-pub)]
+        (sck-decrypt sck ba-iv ba-kek ba-ecnt nil)))))
+
 (defn encrypt-asymmetric
-  "Takes `asym-cipher-algo` ∈ #{:rsa-oaep-sha-256-mgf1}.
-  Content length is limited by public key length, so generally used
+  "Takes `asym-cipher-algo` ∈ #{:rsa-oaep-sha-256-mgf1 :ecies-x25519-v1}.
+  RSA content length is limited by public key length, so generally used
   only to encrypt a random key for a symmetric cipher."
   ^bytes [asym-cipher-algo key-algo key-pub ba-content]
-  (let [cipher  (as-asymmetric-cipher asym-cipher-algo)
-        key-pub (as-key-pub key-algo [:asymmetric? :asym-cipher-algo] key-pub)]
-    (.init    cipher javax.crypto.Cipher/ENCRYPT_MODE key-pub (srng))
-    (.doFinal cipher ba-content)))
+  (let [key-pub (as-key-pub key-algo [:asymmetric? :asym-cipher-algo] key-pub)]
+    (case asym-cipher-algo
+      :ecies-x25519-v1 (encrypt-ecies-x25519 key-pub ba-content)
+      (let [cipher (as-asymmetric-cipher asym-cipher-algo)]
+        (.init    cipher javax.crypto.Cipher/ENCRYPT_MODE key-pub (srng))
+        (.doFinal cipher ba-content)))))
 
 (defn decrypt-asymmetric
-  "Takes `asym-cipher-algo` ∈ #{:rsa-oaep-sha-256-mgf1}."
+  "Takes `asym-cipher-algo` ∈ #{:rsa-oaep-sha-256-mgf1 :ecies-x25519-v1}."
   ^bytes [asym-cipher-algo key-algo key-prv ba-encrypted-content]
-  (let [cipher  (as-asymmetric-cipher asym-cipher-algo)
-        key-prv (as-key-prv key-algo [:asymmetric? :asym-cipher-algo] key-prv)]
-    (.init    cipher javax.crypto.Cipher/DECRYPT_MODE key-prv)
-    (.doFinal cipher ba-encrypted-content)))
+  (let [key-prv (as-key-prv key-algo [:asymmetric? :asym-cipher-algo] key-prv)]
+    (case asym-cipher-algo
+      :ecies-x25519-v1 (decrypt-ecies-x25519 key-prv ba-encrypted-content)
+      (let [cipher (as-asymmetric-cipher asym-cipher-algo)]
+        (.init    cipher javax.crypto.Cipher/DECRYPT_MODE key-prv)
+        (.doFinal cipher ba-encrypted-content)))))
 
 ;;;; Asymmetric ciphers using 2 keypairs
 ;; Note that >2 party key-agreement is possible, but impractical since it
