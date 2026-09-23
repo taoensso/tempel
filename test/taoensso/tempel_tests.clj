@@ -890,6 +890,69 @@
         (is= (tempel/decrypt-with-1-keypair ba-enc-named   kc1-pub {:return :_test}) {:err {:key-id "1"}} "Try 0 -> fail: no private keys")
         (is= (tempel/decrypt-with-1-keypair ba-enc-named   kc2-prv {:return :_test}) {:err {:key-id "1"}} "Try 0 -> fail: exact key missing")]))])
 
+(defn- strip-ehmac [^bytes ba]
+  (let [n (- (alength ba) 34)] ; SHA-256 field (1 + 32 bytes), final reserved byte
+    (bytes/ba-join
+      (bytes/ba->sublen n ba)
+      (bytes/with-out [out] 2
+        (bytes/write-dynamic-ba out nil)
+        (df/write-resv out)))))
+
+(deftest _required-hmacs
+  (let [key-sym (impl/rand-ba 32)
+        kp-rsa  (impl/keypair-create :rsa-1024)
+        kp-ec   (impl/keypair-create :ec-secp256r1)
+        ba-cnt  (as-ba "Authenticated content")]
+
+    [(testing "CBC cannot fall back to unauthenticated decryption"
+       (doseq [[encrypt decrypt]
+               [[#(tempel/encrypt-with-password      % "pwd"       %2) #(tempel/decrypt-with-password      % "pwd"       %2)]
+                [#(tempel/encrypt-with-symmetric-key % key-sym     %2) #(tempel/decrypt-with-symmetric-key % key-sym     %2)]
+                [#(tempel/encrypt-with-1-keypair     % kp-rsa      %2) #(tempel/decrypt-with-1-keypair     % kp-rsa      %2)]
+                [#(tempel/encrypt-with-2-keypairs    % kp-ec kp-ec %2) #(tempel/decrypt-with-2-keypairs    % kp-ec kp-ec %2)]]]
+
+         (let [ba (encrypt ba-cnt {:sym-cipher-algo :aes-cbc-128-v1-deprecated
+                                   :pbkdf-nwf :ref-10-msecs :embed-hmac? false :backup-key kp-rsa})
+               stripped (strip-ehmac ba)]
+
+           [(is (ba= ba-cnt (decrypt ba {})))
+            (is (throws? :ex-info "Missing HMAC" (decrypt stripped {})))
+            (is (ba= ba-cnt (decrypt ba {:backup-key kp-rsa})))
+            (is (throws? :ex-info "Missing HMAC" (decrypt stripped {:backup-key kp-rsa})))
+            (is (ba= ba-cnt (decrypt stripped {:ignore-hmac? true})))])))
+
+     (testing "Legacy CBC backup copy without an HMAC"
+       (let [ba  (with-redefs [impl/ehmac-required? (constantly false)] ; Simulate legacy write
+                   (tempel/encrypt-with-symmetric-key ba-cnt key-sym
+                     {:sym-cipher-algo :aes-cbc-128-v1-deprecated, :backup-key kp-rsa
+                      :hash-algo :sha-512})) ; 64-byte key forces hybrid (CBC) backup copy
+             bad (aclone ^bytes ba)
+             idx (- (alength bad) 2)
+             recover #(tempel/decrypt-with-symmetric-key % nil {:backup-key kp-rsa, :backup-opts {:ignore-hmac? true}})]
+
+         [(aset-byte bad idx (unchecked-byte (bit-xor 1 (aget bad idx)))) ; Tamper outer HMAC
+          (is (throws? :ex-info "Missing HMAC in embedded" (tempel/decrypt-with-symmetric-key ba nil {:backup-key kp-rsa})))
+          (is (ba= ba-cnt (recover ba)))
+          (is (throws? :ex-info "Unexpected HMAC" (recover bad)) "Outer HMAC still checked")]))
+
+     (testing "Public keychain tampering and HMAC removal"
+       (let [kc (keys/keychain {:only? true :asymmetric-keypairs [kp-rsa]})
+             ba (tempel/keychain-encrypt kc {:key-sym key-sym :embed-hmac? false})
+             ba-pub (.getEncoded (.getPublic kp-rsa))
+             stripped (strip-ehmac ba)
+             bad (tamper-embedded-ba stripped ba-pub)]
+
+         [(is (= kc (tempel/keychain-decrypt ba {:key-sym key-sym})))
+          (is (nil? (tempel/keychain-decrypt (tamper-embedded-ba ba ba-pub) {:key-sym key-sym}))
+            "Kept HMAC catches a modified public key")
+          (is (throws? :ex-info "Missing HMAC" (tempel/keychain-decrypt stripped {:key-sym key-sym})))
+          (is (throws? :ex-info "Missing HMAC" (tempel/keychain-decrypt bad      {:key-sym key-sym})))
+          (is (= kc (tempel/keychain-decrypt stripped {:key-sym key-sym :ignore-hmac? true})))]))
+
+     (testing "AEAD data without an HMAC is still accepted"
+       (let [ba (tempel/encrypt-with-symmetric-key ba-cnt key-sym {:embed-hmac? false})]
+         (is (ba= ba-cnt (tempel/decrypt-with-symmetric-key ba key-sym)))))]))
+
 (deftest _signature-hash-algos
   [(let [kp (impl/keypair-create :rsa-1024)]
      (doseq [hash-algo [:md5 :sha-1]]

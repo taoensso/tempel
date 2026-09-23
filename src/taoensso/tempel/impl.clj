@@ -1061,4 +1061,20 @@
 (do
   (def ^:const error-msg-bad-backup-key "Failed to decrypt Tempel data (with backup key)")
   (def ^:const error-msg-bad-pwd        "Failed to decrypt Tempel data (with password)")
-  (def ^:const error-msg-bad-ehmac      "Unexpected HMAC: bad decryption key, or corrupt data."))
+  (def ^:const error-msg-bad-ehmac      "Unexpected HMAC: bad decryption key, or corrupt data.")
+  (def ^:const error-msg-missing-ehmac
+    (str "Missing HMAC: encrypted keychains and CBC data require an embedded HMAC. "
+      "To recover trusted legacy data, decrypt with `:ignore-hmac? true`, then re-encrypt.")))
+
+(defn ehmac-required?
+  "Returns true iff data encrypted with `sym-cipher-algo` needs an embedded HMAC
+  for integrity, i.e. the cipher isn't AEAD (`:aes-cbc-*-deprecated`)."
+  [sym-cipher-algo] (not (sck-can-aad? (as-symmetric-cipher-kit sym-cipher-algo))))
+
+(defn ehmac-required!
+  "Throws if an HMAC is required but absent. Checked before key derivation so
+  that legacy data without an HMAC fails with a clear error rather than
+  looking like a bad password or key."
+  [ehmac* ignore-hmac? required?]
+  (when (and required? (not ignore-hmac?) (nil? (second ehmac*)))
+    (truss/ex-info! error-msg-missing-ehmac {:missing-hmac? true})))

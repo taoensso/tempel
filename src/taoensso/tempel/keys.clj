@@ -61,7 +61,13 @@
           (try
             (core/decrypt-with-1-keypair ba-ekey1b backup-key backup-opts)
             (catch Throwable t
-              (truss/ex-info! "Failed to decrypt embedded backup key" {} t))))))))
+              (if-not (get (ex-data t) :missing-hmac?) ; Legacy CBC backup copy
+                (truss/ex-info! "Failed to decrypt embedded backup key" {} t)
+                (truss/ex-info!
+                  (str "Missing HMAC in embedded backup key copy (legacy CBC data). "
+                    "Decrypt with the primary key/password and re-encrypt, or for trusted "
+                    "offline recovery use `:backup-opts {:ignore-hmac? true}`.")
+                  {} t)))))))))
 
 ;;;; ChainKey
 
@@ -997,6 +1003,7 @@
         _ (have? some? hash-algo sym-cipher-algo)
         _ (when (and password key-sym) (truss/ex-info! error-msg-need-pwd-xor-key-sym {}))
 
+        embed-hmac? true ; Public keys are outside the AEAD ciphertext.
         sck       (impl/as-symmetric-cipher-kit sym-cipher-algo)
         ba-iv     (impl/rand-ba impl/min-iv-len)
         ba-salt   (when password (impl/derive-ba-salt hash-algo ba-iv))
@@ -1040,7 +1047,7 @@
 
           (df/write-head          out)
           (df/write-kid           out :envelope :encrypted-keychain-v1)
-          (df/write-flags         out nil nil)
+          (df/write-flags         out nil {:has-hmac true :has-backup-key (boolean ?ba-ekey1b)})
           (bytes/write-dynamic-ba out ba-aad)
           (bytes/write-dynamic-ba out ba-kc-pub)
           (bytes/write-dynamic-ba out ?ba-key-id)
@@ -1124,6 +1131,8 @@
             _               (df/read-resv!           in)
             ehmac*          (impl/read-ehmac*        in bais ba-ekc)
             _               (df/read-resv!           in)
+
+            _ (impl/ehmac-required! ehmac* ignore-hmac? true)
 
             hmac-pass!
             (fn [ba-key1]

@@ -292,11 +292,17 @@
       minimize the size of your encrypted output. Adds ~32 bytes to output when
       using the default `:sha-256` hash algorithm.
 
+      Encrypted keychains and legacy CBC ciphers always include an HMAC,
+      regardless of this option, and require it when decrypting.
+
     `:ignore-hmac?` (relevant only when decrypting)
       Should embedded HMAC be ignored when decrypting?
 
       Default: false.
       Keep this disabled unless you're sure you understand the implications.
+
+      For trusted offline recovery only: this also permits reading legacy
+      keychains/CBC data without an HMAC. Re-encrypt recovered data promptly.
 
     `:backup-key`
       When encrypting:
@@ -556,9 +562,10 @@
           #_backup-key #_backup-opts]}
         (get-opts+ opts)
 
-        _          (have? some? hash-algo sym-cipher-algo pbkdf-algo pbkdf-nwf)
-        sck        (impl/as-symmetric-cipher-kit sym-cipher-algo)
-        key-len    (impl/sck-key-len sck)
+        _           (have? some? hash-algo sym-cipher-algo pbkdf-algo pbkdf-nwf)
+        sck         (impl/as-symmetric-cipher-kit         sym-cipher-algo)
+        embed-hmac? (or embed-hmac? (impl/ehmac-required? sym-cipher-algo))
+        key-len     (impl/sck-key-len sck)
 
         ba-iv      (impl/rand-ba (max (impl/sck-iv-len sck) impl/min-iv-len))
         ba-salt    (impl/derive-ba-salt hash-algo ba-iv)
@@ -637,6 +644,8 @@
             ehmac*          (impl/read-ehmac*       in bais ba-encrypted)
             _               (df/read-resv!          in)
 
+            _ (impl/ehmac-required! ehmac* ignore-hmac? (impl/ehmac-required? sym-cipher-algo))
+
             hmac-pass!
             (fn [ba-key1]
               (if (or ignore-hmac? (impl/ehmac-pass? ehmac* ba-encrypted hash-algo ba-key1 ba-iv))
@@ -714,9 +723,10 @@
         ba-key0    (have enc/bytes? key-sym)
         ?ba-key-id (when embed-key-ids? (bytes/?str->?utf8-ba key-id))
 
-        sck        (impl/as-symmetric-cipher-kit sym-cipher-algo)
-        ba-iv      (impl/rand-ba (max (impl/sck-iv-len sck) impl/min-iv-len))
-        ba-key1    (impl/derive-ba-key1 hash-algo ba-key0 ba-iv ba-akm)
+        sck         (impl/as-symmetric-cipher-kit         sym-cipher-algo)
+        embed-hmac? (or embed-hmac? (impl/ehmac-required? sym-cipher-algo))
+        ba-iv       (impl/rand-ba (max (impl/sck-iv-len sck) impl/min-iv-len))
+        ba-key1     (impl/derive-ba-key1 hash-algo ba-key0 ba-iv ba-akm)
 
         ba-ecnt    (let [ba-key1 (impl/derive-ba-key2 hash-algo ba-key1 ba-iv)]
                      (impl/sck-encrypt sck ba-iv ba-key1 ba-content ba-aad))
@@ -781,6 +791,8 @@
             _               (df/read-resv!           in)
             ehmac*          (impl/read-ehmac*        in bais ba-encrypted)
             _               (df/read-resv!           in)
+
+            _ (impl/ehmac-required! ehmac* ignore-hmac? (impl/ehmac-required? sym-cipher-algo))
 
             hmac-pass!
             (fn [ba-key1]
@@ -915,6 +927,7 @@
             _ (have? some? hash-algo sym-cipher-algo)
 
             sck        (impl/as-symmetric-cipher-kit sym-cipher-algo)
+            embed-hmac? (or embed-hmac? (impl/ehmac-required? sym-cipher-algo))
             ba-iv      (impl/rand-ba (max (impl/sck-iv-len  sck) impl/min-iv-len))
             ba-key0    (impl/rand-ba      (impl/sck-key-len sck)) ; Random 1-time symmetric key
             ba-key1    (impl/derive-ba-key1 hash-algo ba-key0 ba-iv ba-akm)
@@ -1035,6 +1048,8 @@
                 ehmac*           (impl/read-ehmac*        in bais ba-encrypted)
                 _                (df/read-resv!           in)
 
+                _ (impl/ehmac-required! ehmac* ignore-hmac? (impl/ehmac-required? sym-cipher-algo))
+
                 hmac-pass!
                 (fn [ba-key1]
                   (if (or ignore-hmac? (impl/ehmac-pass? ehmac* ba-encrypted hash-algo ba-key1 ba-iv))
@@ -1137,9 +1152,10 @@
         ?ba-recvr-key-id (when embed-key-ids? (bytes/?str->?utf8-ba recvr-key-id))
         ?ba-sendr-key-id (when embed-key-ids? (bytes/?str->?utf8-ba sendr-key-id))
 
-        ka-algo (have (or ka-algo (get (impl/key-algo-info key-algo) :ka-algo)))
-        sck     (impl/as-symmetric-cipher-kit sym-cipher-algo)
-        ba-iv   (impl/rand-ba (max (impl/sck-iv-len sck) impl/min-iv-len))
+        ka-algo     (have (or ka-algo (get (impl/key-algo-info key-algo) :ka-algo)))
+        sck         (impl/as-symmetric-cipher-kit         sym-cipher-algo)
+        embed-hmac? (or embed-hmac? (impl/ehmac-required? sym-cipher-algo))
+        ba-iv       (impl/rand-ba (max (impl/sck-iv-len sck) impl/min-iv-len))
         ba-key1
         (let [ba-key0 (impl/key-shared-create ka-algo key-algo key-prv key-pub)]
           (impl/derive-ba-key1 hash-algo ba-key0 ba-iv ba-akm))
@@ -1225,6 +1241,8 @@
             _               (df/read-resv!           in)
             ehmac*          (impl/read-ehmac*        in bais ba-encrypted)
             _               (df/read-resv!           in)
+
+            _ (impl/ehmac-required! ehmac* ignore-hmac? (impl/ehmac-required? sym-cipher-algo))
 
             hmac-pass!
             (fn [ba-key1]
