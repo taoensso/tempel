@@ -240,9 +240,7 @@
       Default: `:aes-gcm-128-v1`, a good general-purpose symmetric cipher with
       AEAD support.
 
-      Note that the 256 bit AES cipher is not necessarily stronger than the 128
-      bit, and may even be weaker due to possible unique attack vectors
-      (Ref. <https://www.schneier.com/blog/archives/2009/07/another_new_aes.html>).
+      AES-256 is also available when a larger security margin is required.
 
     `:keypair-creator` ∈ #{<function> <delay>}
       The function to use when generating asymmetric keypairs.
@@ -331,6 +329,12 @@
       When decrypting:
         When data was encrypted with support for a backup key, use this
         `KeyChain` (see `keychain`) or `KeyPair` (see `keypair-create`) to decrypt.
+
+        Backup recovery does NOT authenticate the original sender or password
+        holder: anyone with the backup public key can create recoverable data.
+        Authenticate the stored envelope separately before recovery (e.g. with
+        a signature from a trusted key). Supply `:backup-key` per recovery call,
+        rather than enabling it globally. Always authenticate backup public keys.
 
       Key algorithm must support use as an asymmetric cipher.
       Suitable algorithms: `:rsa-<nbits>`.
@@ -1129,6 +1133,9 @@
     - Sender's   asymmetric public  key
 
   Decrypt output byte[] with: `decrypt-with-2-keypairs`.
+  This is static key agreement: either participant can create messages, and
+  compromise of either private key exposes past messages (no forward secrecy).
+  Authenticate peer public keys and bind sender/receiver roles in AAD when needed.
 
   Options:
     `:ba-aad` - See `help:aad`

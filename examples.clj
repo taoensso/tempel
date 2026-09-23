@@ -129,17 +129,14 @@ alice-keychain
 ;; account's `KeyChain` as a backup key when encrypting the `KeyChain`s of other
 ;; user accounts.
 
-(defonce _create-admin-user
-  (do
-    (swap! my-users-db_ assoc "Admin"
-      (tempel/keychain-encrypt (tempel/keychain)
-        {:pbkdf-nwf :ref-2000-msecs      ; Override default in *config*
-         :password  "admin-secret-password"}))
-    nil))
-
 (defonce admin-public-keychain
-  ;; Public component of the admin user's `KeyChain`
-  (:keychain (tempel/public-data (get-encrypted-keychain "Admin"))))
+  (let [kc (tempel/keychain)]
+    (swap! my-users-db_ assoc "Admin"
+      (tempel/keychain-encrypt kc
+        {:pbkdf-nwf :ref-2000-msecs
+         :password  "admin-secret-password"}))
+    ;; Pin the public keys from the trusted original, not unverified DB data.
+    (tempel/keychain-thaw-public (tempel/keychain-freeze-public kc))))
 
 admin-public-keychain
 ;; => #taoensso.tempel.keys.KeyChain[{:n-pub 2, :secret? false} 0x47230e9]
@@ -277,7 +274,9 @@ admin-public-keychain
 
 ;;; Reset forgotten password
 
-;; This is where we'll make use of the backup admin key we setup earlier.
+;; Backup recovery requires trusted storage or separate envelope authentication:
+;; anyone with the admin public key can construct a recoverable keychain.
+;; Pin the admin public key and authenticate stored envelopes before recovery.
 
 (defn user-reset-forgotten-password!
   "Uses Admin `KeyChain` to reset user's password and return their decrypted `KeyChain`."
@@ -299,6 +298,7 @@ admin-public-keychain
           {:password   new-user-password
            :backup-key admin-public-keychain})]
 
+    (swap! my-users-db_ assoc user-id new-encrypted-user-keychain)
     decrypted-user-keychain))
 
 (user-reset-forgotten-password! "Alice" "admin-secret-password" "alice-secret-password")

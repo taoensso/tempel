@@ -998,7 +998,7 @@
 
     I.e. verifies if the keypair owner signed this content.
 
-    Takes `sig-algo` ∈ #{:sha-256-rsa :sha-512-rsa}."
+    Takes `sig-algo` ∈ #{:sha-<nbits>-rsa :sha-<nbits>-ecdsa}."
   [sig-algo key-algo signer-key-pub ba-content ba-signature]
   (let [sig            (as-signature sig-algo)
         signer-key-pub (as-key-pub   key-algo [:asymmetric? :sig-algo] signer-key-pub)]

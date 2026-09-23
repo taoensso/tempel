@@ -20,17 +20,14 @@ We'll create and maintain a secret `KeyChain` for each user, storing these only 
 Let's start by manually creating a **privileged admin account**. We'll use this account's `KeyChain` as a backup key when encrypting the `KeyChain`s of other user accounts:
 
 ```clojure
-(defonce _create-admin-user
-  (do
-    (swap! my-users-db_ assoc "Admin"
-      (tempel/keychain-encrypt (tempel/keychain)
-        {:pbkdf-nwf :ref-2000-msecs      ; Override default in *config*
-         :password  "admin-secret-password"}))
-    nil))
-
 (defonce admin-public-keychain
-  ;; Public component of the admin user's `KeyChain`
-  (:keychain (tempel/public-data (get-encrypted-keychain "Admin"))))
+  (let [kc (tempel/keychain)]
+    (swap! my-users-db_ assoc "Admin"
+      (tempel/keychain-encrypt kc
+        {:pbkdf-nwf :ref-2000-msecs
+         :password  "admin-secret-password"}))
+    ;; Pin the public keys from the trusted original, not unverified DB data.
+    (tempel/keychain-thaw-public (tempel/keychain-freeze-public kc))))
 
 admin-public-keychain
 ;; => #taoensso.tempel.keys.KeyChain[{:n-pub 2, :secret? false} 0x47230e9]
@@ -167,7 +164,13 @@ See the `*config*` [docstring](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/
 
 ## Reset forgotten password
 
-This is where we'll make use of the backup admin key we setup earlier:
+This is where we'll make use of the backup admin key we setup earlier.
+
+This example assumes trusted storage. **Backup recovery does not authenticate the
+original user**: anyone with the admin public key can construct a recoverable
+keychain. If database writes are untrusted, authenticate the stored envelope
+separately (for example, with a signature and a pinned verification key) before
+resetting a password. Pin the admin public key in trusted configuration too.
 
 ```clojure
 (defn user-reset-forgotten-password!
@@ -190,6 +193,7 @@ This is where we'll make use of the backup admin key we setup earlier:
           {:password   new-user-password
            :backup-key admin-public-keychain})]
 
+    (swap! my-users-db_ assoc user-id new-encrypted-user-keychain)
     decrypted-user-keychain))
 
 (user-reset-forgotten-password! "Alice" "admin-secret-password" "alice-secret-password")
