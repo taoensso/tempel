@@ -190,6 +190,7 @@
     `:hash-algo` ∈ #{:md5 :sha-1 *:sha-256 :sha-512}
       Hash algorithm used for internal HMACs, etc.
       Default: `:sha-256`, there's usually no good reason to change this.
+      Signing never uses `:md5` or `:sha-1`, these are upgraded to `:sha-256`.
 
     `:pbkdf-algo` ∈ #{*:scrypt-r8p1-v1 :pbkdf2-hmac-sha-256-v1}
       Algorithm to use for password-based key stretching.
@@ -1271,6 +1272,19 @@
 
 ;;;; Signature API
 
+(defn- signature-hash-algo
+  "Returns given `hash-algo`, upgrading collision-broken algos to `:sha-256`."
+  [hash-algo] (case hash-algo (:md5 :sha-1) :sha-256 hash-algo))
+
+(defn- signature-hash-algo! [hash-algo]
+  (when-not (#{:sha-256 :sha-512} hash-algo)
+    (truss/ex-info!
+      (str "Signatures require SHA-256 or SHA-512. To migrate a legacy MD5/SHA-1 "
+        "signature, confirm its content independently, then re-sign it (or have "
+        "the original signer do so). Embedded content is still readable, "
+        "unverified, via `public-data`.")
+      {:hash-algo hash-algo})))
+
 (defn sign
   "Cryptographically signs the given content byte[] and returns a byte[]
   that includes:
@@ -1297,7 +1311,8 @@
     `:embed-content?` - See usage info above
 
     And see `*config*` for details:
-      `hash-algo`, `sig-algo`, `embed-key-ids?`."
+      `hash-algo`, `sig-algo`, `embed-key-ids?`.
+      Signing never uses `:md5` or `:sha-1`, these are upgraded to `:sha-256`."
 
   #_(df/reference-data-formats :signed-v1)
   {:arglists
@@ -1319,7 +1334,8 @@
           embed-key-ids?]}
         (get-opts+ opts)
 
-        _ (have? some? hash-algo)
+        hash-algo (signature-hash-algo hash-algo) ; Never sign with MD5/SHA-1
+        _         (signature-hash-algo! hash-algo)
 
         ckey-prv (keys/get-ckeys-sig signer-key-prv)
         {:keys [key-prv key-id key-algo]} @ckey-prv
@@ -1357,7 +1373,8 @@
     `:ba-aad`     - Returns verified ?byte[] AAD     (when embedded)
     `:map`        - Returns {:keys [ba-aad ba-content]} map (default)
 
-  Returns nil when verification fails.
+  Returns nil when verification fails. Unsupported envelope algorithms,
+  including MD5/SHA-1 prehashes, throw.
 
   Takes a `KeyChain` (see `keychain`) or `KeyPair` (see `keypair-create`).
   Key algorithm must support signatures.
@@ -1387,6 +1404,7 @@
             ?key-id    (bytes/read-dynamic-?str in)
             ?ba-em-cnt (bytes/read-dynamic-?ba  in)
             hash-algo  (df/read-kid             in :hash-algo)
+            _          (signature-hash-algo!        hash-algo)
             sig-algo   (df/read-kid             in :sig-algo)
             ba-sig     (bytes/read-dynamic-ba   in)
             _          (df/read-resv!           in)

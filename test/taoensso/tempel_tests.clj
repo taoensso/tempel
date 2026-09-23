@@ -861,6 +861,16 @@
         (is= (tempel/decrypt-with-1-keypair ba-enc-named   kc1-pub {:return :_test}) {:err {:key-id "1"}} "Try 0 -> fail: no private keys")
         (is= (tempel/decrypt-with-1-keypair ba-enc-named   kc2-prv {:return :_test}) {:err {:key-id "1"}} "Try 0 -> fail: exact key missing")]))])
 
+(deftest _signature-hash-algos
+  [(let [kp (impl/keypair-create :rsa-1024)]
+     (doseq [hash-algo [:md5 :sha-1]]
+       [(is (ba= (as-ba "cnt") (tempel/signed (tempel/sign (as-ba "cnt") kp {:hash-algo hash-algo}) kp {:return :ba-content}))
+          "Weak hash algos are upgraded when signing")
+        (let [ba-legacy (with-redefs [tempel/signature-hash-algo  identity ; Simulate old envelope
+                                      tempel/signature-hash-algo! (fn [_])]
+                          (tempel/sign (as-ba "cnt") kp {:hash-algo hash-algo}))]
+          (is (throws? :ex-info "Signatures require" (tempel/signed ba-legacy kp))))]))])
+
 (deftest _pbkdf-cost-limit
   (let [opts {:pbkdf-algo :pbkdf2-hmac-sha-256-v1 :pbkdf-nwf :ref-50-msecs}
         ba  (tempel/encrypt-with-password (as-ba "cnt") "pwd" opts)
