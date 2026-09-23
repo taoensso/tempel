@@ -871,6 +871,16 @@
                           (tempel/sign (as-ba "cnt") kp {:hash-algo hash-algo}))]
           (is (throws? :ex-info "Signatures require" (tempel/signed ba-legacy kp))))]))])
 
+(deftest _untrusted-envelopes
+  (testing "Oversized field lengths fail before allocation"
+    (let [ba (bytes/with-out [out] 10
+               (df/write-head out)
+               (df/write-kid out :envelope :encrypted-with-password-v1)
+               (df/write-flags out nil nil)
+               (bytes/write-dynamic-uint out Integer/MAX_VALUE))]
+      [(is (throws? java.io.EOFException (tempel/public-data ba)))
+       (is (throws? java.io.EOFException (tempel/decrypt-with-password ba "pwd")))])))
+
 (deftest _pbkdf-cost-limit
   (let [opts {:pbkdf-algo :pbkdf2-hmac-sha-256-v1 :pbkdf-nwf :ref-50-msecs}
         ba  (tempel/encrypt-with-password (as-ba "cnt") "pwd" opts)

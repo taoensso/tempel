@@ -397,7 +397,7 @@
 
       (case env-kid
         :encrypted-with-password-v1
-        (let [?ba-aad (bytes/read-dynamic-?ba in)]
+        (let [?ba-aad (df/read-dynamic-?ba    in)]
           (enc/assoc-when
             {:kind :encrypted-with-password, :version 1}
             :ba-aad          ?ba-aad
@@ -405,8 +405,8 @@
             :has-backup-key? has-backup-key?))
 
         :encrypted-with-symmetric-key-v1
-        (let [?ba-aad (bytes/read-dynamic-?ba  in)
-              ?key-id (bytes/read-dynamic-?str in)]
+        (let [?ba-aad (df/read-dynamic-?ba     in)
+              ?key-id (df/read-dynamic-?str    in)]
           (enc/assoc-when
             {:kind :encrypted-with-symmetric-key, :version 1}
             :ba-aad          ?ba-aad
@@ -417,9 +417,9 @@
         (:encrypted-with-1-keypair-simple-v1
          :encrypted-with-1-keypair-hybrid-v1)
         (let [hybrid?   (= env-kid :encrypted-with-1-keypair-hybrid-v1)
-              ?ba-aad   (when hybrid? (bytes/read-dynamic-?ba  in))
+              ?ba-aad   (when hybrid? (df/read-dynamic-?ba     in))
               key-algo                (df/read-kid             in :key-algo)
-              ?key-id                 (bytes/read-dynamic-?str in)]
+              ?key-id                 (df/read-dynamic-?str    in)]
           (impl/key-algo! key-algo [:asym-cipher-algo])
           (enc/assoc-when
             {:kind :encrypted-with-1-keypair, :version 1, :key-algo key-algo}
@@ -430,10 +430,10 @@
             :has-backup-key? has-backup-key?))
 
         :encrypted-with-2-keypairs-v1
-        (let [?ba-aad      (bytes/read-dynamic-?ba  in)
+        (let [?ba-aad      (df/read-dynamic-?ba     in)
               key-algo     (df/read-kid             in :key-algo)
-              ?recp-key-id (bytes/read-dynamic-?str in)
-              ?send-key-id (bytes/read-dynamic-?str in)]
+              ?recp-key-id (df/read-dynamic-?str    in)
+              ?send-key-id (df/read-dynamic-?str    in)]
           (impl/key-algo! key-algo [:ka-algo])
           (enc/assoc-when
             {:kind :encrypted-with-2-keypairs, :version 1, :key-algo key-algo}
@@ -444,10 +444,10 @@
             :has-backup-key? has-backup-key?))
 
         :signed-v1
-        (let [?ba-aad     (bytes/read-dynamic-?ba  in)
+        (let [?ba-aad     (df/read-dynamic-?ba     in)
               key-algo    (df/read-kid             in :key-algo)
-              ?key-id     (bytes/read-dynamic-?str in)
-              ?ba-content (bytes/read-dynamic-?ba  in)]
+              ?key-id     (df/read-dynamic-?str    in)
+              ?ba-content (df/read-dynamic-?ba     in)]
           (impl/key-algo! key-algo [:sig-algo])
           (enc/assoc-when
             {:kind :signed, :version 1, :key-algo key-algo}
@@ -456,9 +456,9 @@
             :ba-content ?ba-content))
 
         :encrypted-keychain-v1
-        (let [?ba-aad   (bytes/read-dynamic-?ba  in)
-              ba-kc-pub (bytes/read-dynamic-ba   in)
-              ?key-id   (bytes/read-dynamic-?str in)]
+        (let [?ba-aad   (df/read-dynamic-?ba     in)
+              ba-kc-pub (df/read-dynamic-ba      in)
+              ?key-id   (df/read-dynamic-?str    in)]
           (enc/assoc-when
             {:kind :encrypted-keychain, :version 1,
              :keychain (keys/keychain-thaw nil ba-kc-pub)}
@@ -624,15 +624,15 @@
             _               (df/read-head!          in)
             _               (df/read-kid            in :envelope env-kid)
             _               (df/skip-flags          in)
-            ?ba-aad         (bytes/read-dynamic-?ba in)
+            ?ba-aad         (df/read-dynamic-?ba    in)
             hash-algo       (df/read-kid            in :hash-algo)
             sym-cipher-algo (df/read-kid            in :sym-cipher-algo)
             pbkdf-algo      (df/read-kid            in :pbkdf-algo)
             pbkdf-nwf       (bytes/read-ushort      in)
-            ?ba-salt        (bytes/read-dynamic-?ba in)
-            ba-iv           (bytes/read-dynamic-ba  in)
-            ba-ecnt         (bytes/read-dynamic-ba  in)
-            ?ba-ekey1b      (bytes/read-dynamic-?ba in)
+            ?ba-salt        (df/read-dynamic-?ba    in)
+            ba-iv           (df/read-dynamic-ba     in)
+            ba-ecnt         (df/read-dynamic-ba     in)
+            ?ba-ekey1b      (df/read-dynamic-?ba    in)
             _               (df/read-resv!          in)
             ehmac*          (impl/read-ehmac*       in bais ba-encrypted)
             _               (df/read-resv!          in)
@@ -771,13 +771,13 @@
             _               (df/read-head!           in)
             _               (df/read-kid             in :envelope env-kid)
             _               (df/skip-flags           in)
-            ?ba-aad         (bytes/read-dynamic-?ba  in)
-            ?key-id         (bytes/read-dynamic-?str in)
+            ?ba-aad         (df/read-dynamic-?ba     in)
+            ?key-id         (df/read-dynamic-?str    in)
             hash-algo       (df/read-kid             in :hash-algo)
             sym-cipher-algo (df/read-kid             in :sym-cipher-algo)
-            ba-iv           (bytes/read-dynamic-ba   in)
-            ba-ecnt         (bytes/read-dynamic-ba   in)
-            ?ba-ekey1b      (bytes/read-dynamic-?ba  in)
+            ba-iv           (df/read-dynamic-ba      in)
+            ba-ecnt         (df/read-dynamic-ba      in)
+            ?ba-ekey1b      (df/read-dynamic-?ba     in)
             _               (df/read-resv!           in)
             ehmac*          (impl/read-ehmac*        in bais ba-encrypted)
             _               (df/read-resv!           in)
@@ -994,16 +994,16 @@
                 (when ba-akm
                   (truss/ex-info! "Failed to decrypt Tempel data (no AKM support)" {}))
 
-                ;; ?ba-aad         (bytes/read-dynamic-?ba  in)
+                ;; ?ba-aad         (df/read-dynamic-?ba     in)
                 key-algo           (df/read-kid             in :key-algo)
-                ?key-id            (bytes/read-dynamic-?str in)
+                ?key-id            (df/read-dynamic-?str    in)
                 ;; hash-algo       (df/read-kid             in :hash-algo)
                 ;; sym-cipher-algo (df/read-kid             in :sym-cipher-algo)
                 asym-cipher-algo   (df/read-kid             in :asym-cipher-algo)
-                ;; ba-iv           (bytes/read-dynamic-ba   in)
-                ba-ecnt            (bytes/read-dynamic-ba   in)
-                ;; ba-ekey0        (bytes/read-dynamic-ba   in)
-                ;; ?ba-ekey1b      (bytes/read-dynamic-?ba  in)
+                ;; ba-iv           (df/read-dynamic-ba      in)
+                ba-ecnt            (df/read-dynamic-ba      in)
+                ;; ba-ekey0        (df/read-dynamic-ba      in)
+                ;; ?ba-ekey1b      (df/read-dynamic-?ba     in)
                 _                  (df/read-resv!           in)
                 ;; ehmac*          (impl/read-ehmac*        in bais ba-encrypted)
                 ;;_                (df/read-resv!           in)
@@ -1021,16 +1021,16 @@
 
           :encrypted-with-1-keypair-hybrid-v1
           #_(df/reference-data-formats :encrypted-with-1-keypair-hybrid-v1)
-          (let [?ba-aad          (bytes/read-dynamic-?ba  in)
+          (let [?ba-aad          (df/read-dynamic-?ba     in)
                 key-algo         (df/read-kid             in :key-algo)
-                ?key-id          (bytes/read-dynamic-?str in)
+                ?key-id          (df/read-dynamic-?str    in)
                 hash-algo        (df/read-kid             in :hash-algo)
                 sym-cipher-algo  (df/read-kid             in :sym-cipher-algo)
                 asym-cipher-algo (df/read-kid             in :asym-cipher-algo)
-                ba-iv            (bytes/read-dynamic-ba   in)
-                ba-ecnt          (bytes/read-dynamic-ba   in)
-                ba-ekey0         (bytes/read-dynamic-ba   in)
-                ?ba-ekey1b       (bytes/read-dynamic-?ba  in)
+                ba-iv            (df/read-dynamic-ba      in)
+                ba-ecnt          (df/read-dynamic-ba      in)
+                ba-ekey0         (df/read-dynamic-ba      in)
+                ?ba-ekey1b       (df/read-dynamic-?ba     in)
                 _                (df/read-resv!           in)
                 ehmac*           (impl/read-ehmac*        in bais ba-encrypted)
                 _                (df/read-resv!           in)
@@ -1211,17 +1211,17 @@
             _               (df/read-head!           in)
             _               (df/read-kid             in :envelope env-kid)
             _               (df/skip-flags           in)
-            ?ba-aad         (bytes/read-dynamic-?ba  in)
+            ?ba-aad         (df/read-dynamic-?ba     in)
             key-algo        (df/read-kid             in :key-algo)
-            ?recvr-key-id   (bytes/read-dynamic-?str in)
-            ?sendr-key-id   (bytes/read-dynamic-?str in)
+            ?recvr-key-id   (df/read-dynamic-?str    in)
+            ?sendr-key-id   (df/read-dynamic-?str    in)
 
             hash-algo       (df/read-kid             in :hash-algo)
             ka-algo         (df/read-kid             in :ka-algo)
             sym-cipher-algo (df/read-kid             in :sym-cipher-algo)
-            ba-iv           (bytes/read-dynamic-ba   in)
-            ba-ecnt         (bytes/read-dynamic-ba   in)
-            ?ba-ekey1b      (bytes/read-dynamic-?ba  in)
+            ba-iv           (df/read-dynamic-ba      in)
+            ba-ecnt         (df/read-dynamic-ba      in)
+            ?ba-ekey1b      (df/read-dynamic-?ba     in)
             _               (df/read-resv!           in)
             ehmac*          (impl/read-ehmac*        in bais ba-encrypted)
             _               (df/read-resv!           in)
@@ -1403,14 +1403,14 @@
             _          (df/read-head!           in)
             _          (df/read-kid             in :envelope env-kid)
             _          (df/skip-flags           in)
-            ?ba-aad    (bytes/read-dynamic-?ba  in)
+            ?ba-aad    (df/read-dynamic-?ba     in)
             key-algo   (df/read-kid             in :key-algo)
-            ?key-id    (bytes/read-dynamic-?str in)
-            ?ba-em-cnt (bytes/read-dynamic-?ba  in)
+            ?key-id    (df/read-dynamic-?str    in)
+            ?ba-em-cnt (df/read-dynamic-?ba     in)
             hash-algo  (df/read-kid             in :hash-algo)
             _          (signature-hash-algo!        hash-algo)
             sig-algo   (df/read-kid             in :sig-algo)
-            ba-sig     (bytes/read-dynamic-ba   in)
+            ba-sig     (df/read-dynamic-ba      in)
             _          (df/read-resv!           in)
 
             ba-cnt     (or ba-content ?ba-em-cnt)

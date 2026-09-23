@@ -677,8 +677,8 @@
   ([ba-kc_]
    (when-let [ba-kc (force ba-kc_)]
      (bytes/with-in [in] ba-kc
-       (let [?ba-kc-prv (bytes/read-dynamic-?ba in)
-             ?ba-kc-pub (bytes/read-dynamic-?ba in)]
+       (let [?ba-kc-prv (df/read-dynamic-?ba    in)
+             ?ba-kc-pub (df/read-dynamic-?ba    in)]
          (mkc-thaw ?ba-kc-prv ?ba-kc-pub)))))
 
   ([ba-kc-prv ba-kc-pub]
@@ -695,13 +695,13 @@
                    acc
                    (enc/reduce-n
                      (fn [acc _]
-                       (let [key-id   (bytes/read-dynamic-str in)
+                       (let [key-id   (df/read-dynamic-str    in)
                              key-type (df/read-kid in :key-type)
                              mkc-entry
                              (when key-type
                                (let [key-algo (df/read-kid           in :key-algo)
                                      priority (bytes/read-ushort     in)
-                                     key-ba   (bytes/read-dynamic-ba in) ; Was previously ?ba
+                                     key-ba   (df/read-dynamic-ba    in) ; Was previously ?ba
                                      [key-at key-cnt]
                                      (case key-type
                                        :sym [:key-sym (do                           key-ba)]
@@ -1094,19 +1094,19 @@
             _               (df/read-head!           in)
             _               (df/read-kid             in :envelope env-kid)
             _               (df/skip-flags           in)
-            ?ba-aad         (bytes/read-dynamic-?ba  in)
-            ?ba-kc-pub      (bytes/read-dynamic-?ba  in)
-            ?key-id         (bytes/read-dynamic-?str in)
+            ?ba-aad         (df/read-dynamic-?ba     in)
+            ?ba-kc-pub      (df/read-dynamic-?ba     in)
+            ?key-id         (df/read-dynamic-?str    in)
             _               (df/read-resv!           in)
             hash-algo       (df/read-kid             in :hash-algo)
             sym-cipher-algo (df/read-kid             in :sym-cipher-algo)
             ?pbkdf-algo     (df/read-kid             in :pbkdf-algo)
             pbkdf-nwf       (bytes/read-ushort       in)
-            ?ba-salt        (bytes/read-dynamic-?ba  in)
+            ?ba-salt        (df/read-dynamic-?ba     in)
             _               (df/read-resv!           in)
-            ba-iv           (bytes/read-dynamic-ba   in)
-            ba-ecnt         (bytes/read-dynamic-ba   in)
-            ?ba-ekey1b      (bytes/read-dynamic-?ba  in)
+            ba-iv           (df/read-dynamic-ba      in)
+            ba-ecnt         (df/read-dynamic-ba      in)
+            ?ba-ekey1b      (df/read-dynamic-?ba     in)
             _               (df/read-resv!           in)
             ehmac*          (impl/read-ehmac*        in bais ba-ekc)
             _               (df/read-resv            in)
@@ -1163,8 +1163,8 @@
 
         (when-let [ba-cnt ?ba-cnt]
           (bytes/with-in [in] ba-cnt
-            (let [?ba-kc-prv (bytes/read-dynamic-?ba in)
-                  ?ba-ucnt   (bytes/read-dynamic-?ba in) ; User content
+            (let [?ba-kc-prv (df/read-dynamic-?ba    in)
+                  ?ba-ucnt   (df/read-dynamic-?ba    in) ; User content
                   _          (df/read-resv!          in)
                   keychain   (keychain-thaw ?ba-kc-prv ?ba-kc-pub)]
 

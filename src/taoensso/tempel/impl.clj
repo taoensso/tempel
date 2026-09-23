@@ -11,6 +11,7 @@
   (:refer-clojure :exclude [rand-nth])
   (:require
    [taoensso.truss :as truss :refer [have have?]]
+   [taoensso.tempel.df    :as df]
    [taoensso.encore       :as enc]
    [taoensso.encore.bytes :as bytes :refer [as-ba]]))
 
@@ -1035,7 +1036,7 @@
   "Returns [idx-ehmac ?ba-ehmac]"
   [in ^java.io.ByteArrayInputStream bais ^bytes ba-in]
   (let [idx-ehmac (- (alength ba-in) (.available bais)) ; Current pos in `ba-in`
-        ?ba-ehmac (bytes/read-dynamic-?ba in)]
+        ?ba-ehmac (df/read-dynamic-?ba in)]
     [idx-ehmac ?ba-ehmac]))
 
 (defn ehmac-pass?

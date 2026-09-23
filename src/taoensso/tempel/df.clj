@@ -15,6 +15,20 @@
   (remove-ns 'taoensso.tempel.df)
   (:api (enc/interns-overview)))
 
+;;;; Bounded envelope fields
+
+(defn- read-size ^long [^DataInputStream in]
+  (let [n (bytes/read-dynamic-uint in)]
+    (when (> n (.available in))
+      (throw (java.io.EOFException. "Tempel field exceeds remaining input")))
+    n))
+
+(defn read-dynamic-ba  ^bytes [in] (bytes/read-ba  in (read-size in)))
+(defn read-dynamic-?ba        [in] (bytes/read-?ba in (read-size in)))
+(defn read-dynamic-str       [in] (bytes/utf8-ba->str   (read-dynamic-ba  in)))
+(defn read-dynamic-?str      [in] (bytes/?utf8-ba->?str (read-dynamic-?ba in)))
+(defn skip-dynamic-ba [^DataInputStream in] (.skipBytes in (read-size in)))
+
 ;;;; IDs
 ;; - `kid` => keyword id, used to uniquely identify some algo/kit/etc.
 ;; - `bid` => byte    id, used to uniquely freeze (serialize) some `kid`.
@@ -187,9 +201,9 @@
           ba-flags (bytes/freeze-set schema flags)]
       (bytes/write-dynamic-ba out ba-flags)))
 
-  (defn skip-flags [^DataInput in] (bytes/skip-dynamic-ba in))
+  (defn skip-flags [^DataInput in] (skip-dynamic-ba in))
   (defn read-flags [^DataInput in schema+]
-    (when-let [ba (bytes/read-dynamic-?ba in)]
+    (when-let [ba (read-dynamic-?ba in)]
       (let [schema (enc/merge base-schema-thaw schema+)]
         (try
           (bytes/thaw-set schema ba)
