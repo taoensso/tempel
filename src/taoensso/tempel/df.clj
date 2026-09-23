@@ -92,7 +92,8 @@
              4 :sha-256-ecdsa
              5 :sha-512-ecdsa
              6 :sha-256-rsa-pss
-             7 :sha-512-rsa-pss})
+             7 :sha-512-rsa-pss
+             8 :ed25519})
 
           (+entries :ka-algo
             {; 0 nil
@@ -114,7 +115,8 @@
              10 :ec-secp256r1
              11 :ec-secp384r1
              12 :ec-secp521r1
-             13 :x25519})
+             13 :x25519
+             14 :ed25519})
 
           (+entries :key-type
             {0 nil ; For removed ckey entries

@@ -830,11 +830,15 @@
                              [:rsa-2048     :sha-256-rsa-pss]
                              [:rsa-2048     :sha-512-rsa-pss]
                              [:ec-secp256r1 :sha-256-ecdsa]
-                             [:ec-secp256r1 :sha-512-ecdsa]]]
+                             [:ec-secp256r1 :sha-512-ecdsa]
+                             [:ed25519      :ed25519]]]
       (let [kp        (impl/keypair-create algo)
+            kc-pub    (-> (keys/keychain {:empty? true}) (keys/keychain-add-asymmetric-keypair kp)
+                        tempel/keychain-freeze-public tempel/keychain-thaw-public)
             ba-cnt    (as-ba "authenticated signed content")
             ba-signed (tempel/sign ba-cnt kp {:ba-aad ba-aad, :sig-algo sig-algo})]
         [(is (ba= ba-cnt (tempel/signed ba-signed kp {:return :ba-content})))
+         (is (ba= ba-cnt (tempel/signed ba-signed kc-pub {:return :ba-content})) "Serialized public key")
          (is (nil?       (tempel/signed (tamper-embedded-ba ba-signed ba-cnt) kp)) "Tampered content")
          (is (nil?       (tempel/signed (tamper-embedded-ba ba-signed ba-aad) kp)) "Tampered AAD")]))))
 
@@ -1057,6 +1061,14 @@
      (is (throws? :ex-info "more than one" (tempel/keychain-encrypt kc {:key-pub kp :password "pwd"})))
      (let [ekc (binding [tempel/*config* (assoc tempel/*config* :ba-akm ba-akm)] (tempel/keychain-encrypt kc {:key-pub kp}))]
        (is (= kc (tempel/keychain-decrypt ekc {:key-prv kp :ba-akm ba-akm})) "Global AKM applies once"))]))
+
+(deftest _keychain-private-roundtrip
+  (let [kc (keys/keychain {:only? true, :asymmetric-keypairs [:x25519 :ed25519]})
+        k  (impl/rand-ba 32)
+        rt (tempel/keychain-decrypt (tempel/keychain-encrypt kc {:key-sym k}) {:key-sym k})]
+    [(is (= kc rt))
+     (is (ba= ba-cnt (tempel/signed (tempel/sign ba-cnt rt) kc {:return :ba-content})))
+     (is (ba= ba-cnt (tempel/decrypt-with-2-keypairs (tempel/encrypt-with-2-keypairs ba-cnt kc kc) rt rt)))]))
 (deftest _keychain-decrypt-errors
   (is (nil? (tempel/keychain-decrypt (tempel/keychain-encrypt (keys/keychain) {:key-sym (as-ba 32)}) {:password "pwd"}))
     "Password given for keychain encrypted with key")

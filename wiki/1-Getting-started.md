@@ -10,6 +10,8 @@ Whenever you use cryptographic libraries/frameworks (including Tempel), please *
 
 # Setup
 
+Tempel v1.2+ requires **Java 17+**.
+
 Add the [relevant dependency](../#latest-releases) to your project:
 
 ```clojure

@@ -244,11 +244,11 @@
 
     `:sig-algo` (relevant only when signing)
       ∈ #{*nil :sha-256-rsa :sha-512-rsa :sha-256-rsa-pss :sha-512-rsa-pss
-          :sha-256-ecdsa :sha-512-ecdsa}
+          :sha-256-ecdsa :sha-512-ecdsa :ed25519}
 
       The signature algorithm to use. Must suit the signing key's algorithm.
-      Default: nil, meaning `:sha-256-rsa` for RSA keys and `:sha-256-ecdsa`
-      for EC keys.
+      Default: nil, meaning `:sha-256-rsa` for RSA keys, `:sha-256-ecdsa`
+      for EC keys, and `:ed25519` for Ed25519 keys.
 
       The `-rsa-pss` algorithms may be preferred for RSA keys when policy
       requires RSA-PSS. NB older Tempel versions cannot verify them.
@@ -405,7 +405,7 @@
     `:sender-key-id`   - ''
     `:has-hmac?`       - Does data have embedded HMAC?
     `:has-backup-key?` - Can data be decrypted with a secondary (backup) key?
-    `:key-algo`        - ∈ #{:rsa-<nbits> :dh-<nbits> :ec-<curve> :x25519}
+    `:key-algo`        - ∈ #{:rsa-<nbits> :dh-<nbits> :ec-<curve> :x25519 :ed25519}
     `:version`         - Integer version of data format (1, 2, etc.).
     `:kind`            - ∈ #{:encrypted-with-symmetric-key
                              :encrypted-with-password
@@ -1355,7 +1355,7 @@
 
   Takes a `KeyChain` (see `keychain`) or `KeyPair` (see `keypair-create`).
   Key algorithm must support signatures.
-  Suitable algorithms: `:rsa-<nbits>`, `:ec-<curve>`.
+  Suitable algorithms: `:rsa-<nbits>`, `:ec-<curve>`, `:ed25519`.
 
   Signing      uses signer's asymmetric private key.
   Verification uses signer's asymmetric public  key.
@@ -1439,7 +1439,7 @@
 
   Takes a `KeyChain` (see `keychain`) or `KeyPair` (see `keypair-create`).
   Key algorithm must support signatures.
-  Suitable algorithms: `:rsa-<nbits>`, `:ec-<curve>`.
+  Suitable algorithms: `:rsa-<nbits>`, `:ec-<curve>`, `:ed25519`.
 
   Signing      uses signer's asymmetric private key.
   Verification uses signer's asymmetric public  key."
