@@ -83,12 +83,10 @@
           ca-password
           ba-salt
           (int n-iterations)
-          (bytes/n-bytes->n-bits key-len))
-
-        ba-key (.getEncoded (.generateSecret skf pks))]
-
-    (.clearPassword pks)
-    ba-key))
+          (bytes/n-bytes->n-bits key-len))]
+    (try
+      (.getEncoded (.generateSecret skf pks))
+      (finally (.clearPassword pks)))))
 
 (defn- ^:deprecated pbkdf-sha-512-deprecated
   "Custom Password-Based Key Deriviation Function.

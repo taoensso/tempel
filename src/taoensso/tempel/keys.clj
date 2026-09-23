@@ -697,6 +697,8 @@
                      (fn [acc _]
                        (let [key-id   (df/read-dynamic-str    in)
                              key-type (df/read-kid in :key-type)
+                             _ (when (and (= env-kid :keychain-pub-v1) key-type (not= key-type :pub))
+                                 (truss/ex-info! "Non-public key in public keychain" {:key-type key-type}))
                              mkc-entry
                              (when key-type
                                (let [key-algo (df/read-kid           in :key-algo)
@@ -1109,7 +1111,7 @@
             ?ba-ekey1b      (df/read-dynamic-?ba     in)
             _               (df/read-resv!           in)
             ehmac*          (impl/read-ehmac*        in bais ba-ekc)
-            _               (df/read-resv            in)
+            _               (df/read-resv!           in)
 
             hmac-pass!
             (fn [ba-key1]

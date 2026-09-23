@@ -879,7 +879,12 @@
                (df/write-flags out nil nil)
                (bytes/write-dynamic-uint out Integer/MAX_VALUE))]
       [(is (throws? java.io.EOFException (tempel/public-data ba)))
-       (is (throws? java.io.EOFException (tempel/decrypt-with-password ba "pwd")))])))
+       (is (throws? java.io.EOFException (tempel/decrypt-with-password ba "pwd")))]))
+  (testing "Public keychains cannot contain secret keys"
+    (let [kc (keys/keychain {:only? true :symmetric-keys [:random]})
+          ba (aclone ^bytes (:ba-kc-prv (keys/keychain-freeze kc)))]
+      (aset-byte ba 3 (aget ^bytes (tempel/keychain-freeze-public kc) 3))
+      (is (throws? :ex-info "Non-public key" (tempel/keychain-thaw-public ba))))))
 
 (deftest _pbkdf-cost-limit
   (let [opts {:pbkdf-algo :pbkdf2-hmac-sha-256-v1 :pbkdf-nwf :ref-50-msecs}

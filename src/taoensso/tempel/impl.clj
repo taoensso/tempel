@@ -898,7 +898,7 @@
   ^bytes [asym-cipher-algo key-algo key-pub ba-content]
   (let [cipher  (as-asymmetric-cipher asym-cipher-algo)
         key-pub (as-key-pub key-algo [:asymmetric? :asym-cipher-algo] key-pub)]
-    (.init    cipher javax.crypto.Cipher/ENCRYPT_MODE key-pub)
+    (.init    cipher javax.crypto.Cipher/ENCRYPT_MODE key-pub (srng))
     (.doFinal cipher ba-content)))
 
 (defn decrypt-asymmetric
@@ -988,7 +988,7 @@
   (let [sig            (as-signature sig-algo)
         signer-key-prv (as-key-prv key-algo [:asymmetric? :sig-algo] signer-key-prv)]
 
-    (.initSign sig signer-key-prv)
+    (.initSign sig signer-key-prv (srng))
     (.update   sig ^bytes ba-content)
     (.sign     sig)))
 
@@ -1047,7 +1047,7 @@
     (if-let [ba-ehmac-ref ?ba-ehmac]
       (let [ba-to-hash (bytes/ba->sublen idx-ehmac ba-in)
             ba-ehmac   (derive-ba-ehmac hash-algo ba-key1 ba-iv ba-to-hash)]
-        (enc/ba= ba-ehmac-ref ba-ehmac))
+        (java.security.MessageDigest/isEqual ba-ehmac ba-ehmac-ref))
       true)))
 
 ;;;; Common error messages
