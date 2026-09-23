@@ -310,7 +310,10 @@
         key/password, *OR* with this optional secondary (backup) `KeyChain`
         (see `keychain`) or `KeyPair` (see `keypair-create`).
 
-        NB: this backup key will be able to decrypt *without* AKM (see `help:akm`).
+        NB: this backup key will be able to decrypt *without* the per-call AKM
+        (see `help:akm`). A global `:ba-akm` in `*config*` still applies to
+        the backup copy of the key, so recovery needs the same global AKM
+        (or none).
 
       When decrypting:
         When data was encrypted with support for a backup key, use this

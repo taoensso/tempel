@@ -992,3 +992,15 @@
            ba (tempel/encrypt-with-password (as-ba "cnt") "pwd" (assoc opts :backup-key kp))]
        (is (= {:cnt "cnt"} (tempel/decrypt-with-password ba nil {:backup-key kp :pbkdf-nwf-max :ref-10-msecs :return :_test}))
          "Limit doesn't apply to backup recovery (no stretching)"))]))
+
+(deftest _backup-key-opts
+  (testing "Global `:backup-key` doesn't recurse into the backup copy"
+    (let [key-sym (impl/rand-ba 32)
+          kp-rsa  (impl/keypair-create :rsa-1024)
+          ba-cnt  (as-ba "cnt")
+          config  (assoc tempel/*config* :backup-key kp-rsa :backup-opts {:backup-key kp-rsa} :ba-akm (as-ba "global akm"))
+          ba      (binding [tempel/*config* config] (tempel/encrypt-with-symmetric-key ba-cnt key-sym))]
+      [(is (ba= ba-cnt (binding [tempel/*config* config] (tempel/decrypt-with-symmetric-key ba nil))))
+       (is (throws? :ex-info "Failed to decrypt embedded backup key"
+             (tempel/decrypt-with-symmetric-key ba nil {:backup-key kp-rsa}))
+         "Backup copy inherits global AKM")])))

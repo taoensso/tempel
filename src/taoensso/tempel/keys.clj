@@ -35,9 +35,10 @@
             (let [base-opts
                   (->
                     encrypt-opts
-                    (dissoc :ba-aad :ba-akm :backup-key)
+                    (dissoc :ba-aad :ba-akm) ; Per-call only, global `:ba-akm` still applies
                     (assoc  :embed-hmac? false :scheme :auto))]
-              (core/get-opts+ base-opts backup-opts))]
+              (assoc (core/get-opts+ base-opts backup-opts)
+                :backup-key nil :backup-opts nil))] ; Incl. global, prevent recursion
         (try
           (core/encrypt-with-1-keypair (have enc/bytes? ba-key1) backup-key backup-opts)
           (catch Throwable t
@@ -54,9 +55,10 @@
               (let [base-opts
                     (->
                       decrypt-opts
-                      (dissoc :ba-aad :ba-akm :backup-key))]
+                      (dissoc :ba-aad :ba-akm))]
                 (assoc
                   (core/get-opts+ base-opts backup-opts)
+                  :backup-key nil :backup-opts nil
                   :return :ba-content))]
           (try
             (core/decrypt-with-1-keypair ba-ekey1b backup-key backup-opts)
