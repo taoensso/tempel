@@ -31,7 +31,7 @@
 ;; ✓ hash-algo        - #{:md5 :sha-1 :sha-256 :sha-512}
 ;; ✓ sym-cipher-algo  - #{:aes-gcm :aes-cbc :chacha20-poly1305}
 ;; ✓ asym-cipher-algo - #{:rsa-oaep-sha-256-mgf1}
-;; ✓ sig-algo         - #{:sha-<nbits>-rsa :sha-<nbits>-ecdsa}
+;; ✓ sig-algo         - #{:sha-<nbits>-rsa :sha-<nbits>-rsa-pss :sha-<nbits>-ecdsa}
 ;;
 ;; ✓ ka-algo          - #{:dh :ecdh}
 ;; ✓ kf-algo          - #{:rsa :dh :ec}
@@ -961,29 +961,37 @@
 
 ;;;; Signatures
 
-(let [tl:sig-sha-256-rsa   (enc/threadlocal (java.security.Signature/getInstance "SHA256withRSA"))
-      tl:sig-sha-512-rsa   (enc/threadlocal (java.security.Signature/getInstance "SHA512withRSA"))
-      tl:sig-sha-256-ecdsa (enc/threadlocal (java.security.Signature/getInstance "SHA256withECDSA"))
-      tl:sig-sha-512-ecdsa (enc/threadlocal (java.security.Signature/getInstance "SHA512withECDSA"))]
+(defn- sig-rsa-pss [md-name mgf1-spec salt-len]
+  (doto (java.security.Signature/getInstance "RSASSA-PSS")
+    (.setParameter (java.security.spec.PSSParameterSpec. md-name "MGF1" mgf1-spec (int salt-len) 1))))
+
+(let [tl:sig-sha-256-rsa     (enc/threadlocal (java.security.Signature/getInstance "SHA256withRSA"))
+      tl:sig-sha-512-rsa     (enc/threadlocal (java.security.Signature/getInstance "SHA512withRSA"))
+      tl:sig-sha-256-rsa-pss (enc/threadlocal (sig-rsa-pss "SHA-256" java.security.spec.MGF1ParameterSpec/SHA256 32))
+      tl:sig-sha-512-rsa-pss (enc/threadlocal (sig-rsa-pss "SHA-512" java.security.spec.MGF1ParameterSpec/SHA512 64))
+      tl:sig-sha-256-ecdsa   (enc/threadlocal (java.security.Signature/getInstance "SHA256withECDSA"))
+      tl:sig-sha-512-ecdsa   (enc/threadlocal (java.security.Signature/getInstance "SHA512withECDSA"))]
 
   (defn- as-signature
     "Returns `java.security.Signature` or throws.
-    Takes `sig-algo` ∈ #{:sha-<nbits>-rsa :sha-<nbits>-ecdsa}."
+    Takes `sig-algo` ∈ #{:sha-<nbits>-rsa :sha-<nbits>-rsa-pss :sha-<nbits>-ecdsa}."
     ^java.security.Signature [sig-algo]
     (case sig-algo
-      :sha-256-rsa   (.get tl:sig-sha-256-rsa)
-      :sha-512-rsa   (.get tl:sig-sha-512-rsa)
-      :sha-256-ecdsa (.get tl:sig-sha-256-ecdsa)
-      :sha-512-ecdsa (.get tl:sig-sha-512-ecdsa)
+      :sha-256-rsa     (.get tl:sig-sha-256-rsa)
+      :sha-512-rsa     (.get tl:sig-sha-512-rsa)
+      :sha-256-rsa-pss (.get tl:sig-sha-256-rsa-pss)
+      :sha-512-rsa-pss (.get tl:sig-sha-512-rsa-pss)
+      :sha-256-ecdsa   (.get tl:sig-sha-256-ecdsa)
+      :sha-512-ecdsa   (.get tl:sig-sha-512-ecdsa)
       (truss/unexpected-arg! sig-algo
-        {:expected #{:sha-<nbits>-rsa :sha-<nbits>-ecdsa}
+        {:expected #{:sha-<nbits>-rsa :sha-<nbits>-rsa-pss :sha-<nbits>-ecdsa}
          :context  `as-signature}))))
 
 (defn signature-create
   "Returns the signature created by signing the given content with the
   given private key.
 
-  Takes `sig-algo` ∈ #{:sha-<nbits>-rsa :sha-<nbits>-ecdsa}."
+  Takes `sig-algo` ∈ #{:sha-<nbits>-rsa :sha-<nbits>-rsa-pss :sha-<nbits>-ecdsa}."
   ^bytes [sig-algo key-algo signer-key-prv ba-content]
   (let [sig            (as-signature sig-algo)
         signer-key-prv (as-key-prv key-algo [:asymmetric? :sig-algo] signer-key-prv)]
@@ -998,7 +1006,7 @@
 
     I.e. verifies if the keypair owner signed this content.
 
-    Takes `sig-algo` ∈ #{:sha-<nbits>-rsa :sha-<nbits>-ecdsa}."
+    Takes `sig-algo` ∈ #{:sha-<nbits>-rsa :sha-<nbits>-rsa-pss :sha-<nbits>-ecdsa}."
   [sig-algo key-algo signer-key-pub ba-content ba-signature]
   (let [sig            (as-signature sig-algo)
         signer-key-pub (as-key-pub   key-algo [:asymmetric? :sig-algo] signer-key-pub)]

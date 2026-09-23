@@ -822,6 +822,8 @@
 
     (doseq [[algo sig-algo] [[:rsa-1024     :sha-256-rsa]
                              [:rsa-1024     :sha-512-rsa]
+                             [:rsa-2048     :sha-256-rsa-pss]
+                             [:rsa-2048     :sha-512-rsa-pss]
                              [:ec-secp256r1 :sha-256-ecdsa]
                              [:ec-secp256r1 :sha-512-ecdsa]]]
       (let [kp        (impl/keypair-create algo)

@@ -242,6 +242,17 @@
 
       AES-256 is also available when a larger security margin is required.
 
+    `:sig-algo` (relevant only when signing)
+      ∈ #{*nil :sha-256-rsa :sha-512-rsa :sha-256-rsa-pss :sha-512-rsa-pss
+          :sha-256-ecdsa :sha-512-ecdsa}
+
+      The signature algorithm to use. Must suit the signing key's algorithm.
+      Default: nil, meaning `:sha-256-rsa` for RSA keys and `:sha-256-ecdsa`
+      for EC keys.
+
+      The `-rsa-pss` algorithms may be preferred for RSA keys when policy
+      requires RSA-PSS. NB older Tempel versions cannot verify them.
+
     `:keypair-creator` ∈ #{<function> <delay>}
       The function to use when generating asymmetric keypairs.
       See `keypair-create`, `keypair-creator` for details.
