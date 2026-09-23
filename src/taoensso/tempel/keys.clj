@@ -347,7 +347,7 @@
 (defn ^:public keychain-add-asymmetric-keypair
   "Produces a ?new `KeyChain` that contains the given asymmetric keypair.
 
-  `x-keypair` may be: ∈ #{:rsa-<nbits> :dh-<nbits> :ec-<curve>},
+  `x-keypair` may be: ∈ #{:rsa-<nbits> :dh-<nbits> :ec-<curve> :x25519},
   a `java.security.KeyPair`, or a map with {:keys [key-prv key-pub]}.
 
   New keys will by default get top priority, override with `:priority` option.

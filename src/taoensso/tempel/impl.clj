@@ -33,9 +33,9 @@
 ;; ✓ asym-cipher-algo - #{:rsa-oaep-sha-256-mgf1}
 ;; ✓ sig-algo         - #{:sha-<nbits>-rsa :sha-<nbits>-rsa-pss :sha-<nbits>-ecdsa}
 ;;
-;; ✓ ka-algo          - #{:dh :ecdh}
-;; ✓ kf-algo          - #{:rsa :dh :ec}
-;; ✓ key-algo         - #{:rsa-<nbits> :dh-<nbits> :ec-<curve> :symmetric}
+;; ✓ ka-algo          - #{:dh :ecdh :xdh}
+;; ✓ kf-algo          - #{:rsa :dh :ec :xdh}
+;; ✓ key-algo         - #{:rsa-<nbits> :dh-<nbits> :ec-<curve> :x25519 :symmetric}
 ;; ✓ key-type         - #{:sym :pub :prv}
 ;; ✓ key-capability   - #{:ka :sig :sym-cipher :asym-cipher}
 
@@ -451,7 +451,8 @@
      #{:symmetric
        :rsa :rsa-<nbits>
        :dh  :dh-<nbits>
-       :ec  :ec-<curve>}}))
+       :ec  :ec-<curve>
+       :x25519}}))
 
 (defn key-algo-info
   "Returns ?{:keys [kf-algo ka-algo sig-algo cipher-algo, asymmetric? symmetric? wild?]}.
@@ -486,6 +487,11 @@
      ;; :asym-cipher-algo nil
      :asymmetric?         true}
 
+    :x25519
+    {:kf-algo     :xdh
+     :ka-algo     :xdh
+     :asymmetric? true}
+
     #_(key-algo-unknown! key-algo)
     nil))
 
@@ -513,7 +519,7 @@
              :symmetric?       (truss/ex-info! "Unexpected key algorithm: need symmetric type"            {:key-algo         key-algo, :type {:actual :asymmetric, :expected :symmetric}})
              :asymmetric?      (truss/ex-info! "Unexpected key algorithm: need asymmetric type"           {:key-algo         key-algo, :type {:actual :symmetric,  :expected :asymmetric}})
              :sig-algo         (truss/ex-info! "Unexpected key algorithm: need signature support"         {:key-algo {:given key-algo, :expected #{:rsa-<nbits> :ec-<curve>}}})
-             :ka-algo          (truss/ex-info! "Unexpected key algorithm: need key agreement support"     {:key-algo {:given key-algo, :expected #{:dh-<nbits>  :ec-<curve>}}})
+             :ka-algo          (truss/ex-info! "Unexpected key algorithm: need key agreement support"     {:key-algo {:given key-algo, :expected #{:dh-<nbits>  :ec-<curve> :x25519}}})
              :asym-cipher-algo (truss/ex-info! "Unexpected key algorithm: need asymmetric cipher support" {:key-algo {:given key-algo, :expected #{:rsa-<nbits>}}})
              (do               (truss/ex-info! "Unexpected key algorithm: doesn't meet need"              {:key-algo         key-algo, :need need})))))
        key-algo)
@@ -569,7 +575,7 @@
 
   (defn- as-keypair-generator
     "Returns `java.security.KeyPairGenerator`, or throws.
-    Takes `key-algo` ∈ #{:rsa-<nbits> :dh-<nbits> :ec-<curve>}."
+    Takes `key-algo` ∈ #{:rsa-<nbits> :dh-<nbits> :ec-<curve> :x25519}."
     ^java.security.KeyPairGenerator [key-algo]
     (case key-algo
       ;; :rsa-1024  @kpg-rsa-1024_
@@ -586,14 +592,15 @@
       :ec-secp256r1 (kpg-get "EC" :ec-secp256r1)
       :ec-secp384r1 (kpg-get "EC" :ec-secp384r1)
       :ec-secp521r1 (kpg-get "EC" :ec-secp521r1)
+      :x25519       (kpg-get "XDH" java.security.spec.NamedParameterSpec/X25519)
 
       (truss/unexpected-arg! key-algo
-        {:expected #{:rsa-<nbits> :dh-<nbits> :ec-<curve>}
+        {:expected #{:rsa-<nbits> :dh-<nbits> :ec-<curve> :x25519}
          :context  `as-keypair-generator}))))
 
 (defn ^:public keypair-create
   "Generates and returns a new `java.security.KeyPair` for given
-  `key-algo` ∈ #{:rsa :rsa-<nbits> :dh :dh-<nbits> :ec-<curve>}.
+  `key-algo` ∈ #{:rsa :rsa-<nbits> :dh :dh-<nbits> :ec-<curve> :x25519}.
 
   Slow! Consider instead using `keypair-creator`."
   (^java.security.KeyPair [key-algo needs] (keypair-create (key-algo! key-algo needs)))
@@ -723,6 +730,16 @@
 
 (comment (keypair-info-ec (:key-prv (keypair-create* :ec-secp256r1))))
 
+(defn- keypair-info-named [^java.security.spec.NamedParameterSpec spec]
+  (let [key-algo
+        (case (.getName spec)
+          "X25519" :x25519
+          (truss/ex-info! "Unexpected named key algorithm"
+            {:expected #{"X25519"}
+             :actual   (.getName spec)
+             :context  `keypair-info-named}))]
+    {:key-algo key-algo}))
+
 (extend-protocol IKeyPair
   java.security.interfaces.RSAPrivateKey (-keypair-info [x] (assoc (keypair-info-rsa x) :key-prv x))
   java.security.interfaces.RSAPublicKey  (-keypair-info [x] (assoc (keypair-info-rsa x) :key-pub x))
@@ -730,6 +747,8 @@
   javax.crypto.interfaces.DHPublicKey    (-keypair-info [x] (assoc (keypair-info-dh  x) :key-pub x))
   java.security.interfaces.ECPrivateKey  (-keypair-info [x] (assoc (keypair-info-ec  x) :key-prv x))
   java.security.interfaces.ECPublicKey   (-keypair-info [x] (assoc (keypair-info-ec  x) :key-pub x))
+  java.security.interfaces.XECPrivateKey (-keypair-info [x] (assoc (keypair-info-named (.getParams x)) :key-prv x))
+  java.security.interfaces.XECPublicKey  (-keypair-info [x] (assoc (keypair-info-named (.getParams x)) :key-pub x))
   java.security.KeyPair
   (-keypair-info [x]
     (let [{key-algo-prv :key-algo, :as info-prv} (-keypair-info (.getPrivate x))
@@ -776,20 +795,22 @@
 
 (let [tl:kf-rsa (enc/threadlocal (java.security.KeyFactory/getInstance "RSA"))
       tl:kf-dh  (enc/threadlocal (java.security.KeyFactory/getInstance "DiffieHellman"))
-      tl:kf-ec  (enc/threadlocal (java.security.KeyFactory/getInstance "EC"))]
+      tl:kf-ec  (enc/threadlocal (java.security.KeyFactory/getInstance "EC"))
+      tl:kf-xdh (enc/threadlocal (java.security.KeyFactory/getInstance "XDH"))]
 
   (defn- as-key-factory
     "Returns `java.security.KeyFactory`, or throws.
-    Takes `key-algo` ∈ #{:rsa :rsa-<nbits> :dh :dh-<nbits> :ec-<curve>}."
+    Takes `key-algo` ∈ #{:rsa :rsa-<nbits> :dh :dh-<nbits> :ec-<curve> :x25519}."
     ^java.security.KeyFactory
     [key-algo]
     (case key-algo
       (:rsa :rsa-1024 :rsa-2048 :rsa-3072 :rsa-4096)  (.get tl:kf-rsa)
       (:dh   :dh-1024  :dh-2048  :dh-3072  :dh-4096)  (.get tl:kf-dh)
       (:ec :ec-secp256r1 :ec-secp384r1 :ec-secp521r1) (.get tl:kf-ec)
+      :x25519                                         (.get tl:kf-xdh)
 
       (truss/unexpected-arg! key-algo
-        {:expected #{:rsa :rsa-<nbits> :dh :dh-<nbits> :ec :ec-<curve>}
+        {:expected #{:rsa :rsa-<nbits> :dh :dh-<nbits> :ec :ec-<curve> :x25519}
          :context  `as-key-factory}))))
 
 (let [decode-prv (fn [^java.security.KeyFactory kf ba-prv] (.generatePrivate kf (java.security.spec.PKCS8EncodedKeySpec. ba-prv)))
@@ -927,18 +948,20 @@
 
 (let [tl:ka-dh       (enc/threadlocal (javax.crypto.KeyAgreement/getInstance "DiffieHellman")) ; PKCS #3
       tl:ka-ecdh     (enc/threadlocal (javax.crypto.KeyAgreement/getInstance "ECDH")) ; RFC 3278
+      tl:ka-xdh      (enc/threadlocal (javax.crypto.KeyAgreement/getInstance "XDH"))  ; RFC 7748
       ;; tl:ka-ecmqv (enc/threadlocal (javax.crypto.KeyAgreement/getInstance "ECMQV"))
       ]
 
   (defn as-key-agreement
     "Returns `javax.crypto.KeyAgreement`, or throws.
-    Takes `ka-algo` ∈ #{:dh :ecdh}."
+    Takes `ka-algo` ∈ #{:dh :ecdh :xdh}."
     ^javax.crypto.KeyAgreement [ka-algo]
     (case ka-algo
       :dh   (.get tl:ka-dh)
       :ecdh (.get tl:ka-ecdh)
+      :xdh  (.get tl:ka-xdh)
       (truss/unexpected-arg! ka-algo
-        {:expected #{:dh :ecdh}
+        {:expected #{:dh :ecdh :xdh}
          :context  `as-key-agreement}))))
 
 (defn key-shared-create
@@ -950,7 +973,7 @@
       (key-shared-create :dh participant2-key-prv participant1-key-pub))
     => true
 
-  Takes `ka-algo` ∈ #{:dh :ecdh}."
+  Takes `ka-algo` ∈ #{:dh :ecdh :xdh}."
   ^bytes [ka-algo key-algo participant1-key-prv participant2-key-pub]
   (let [ka      (as-key-agreement ka-algo)
         key-prv (as-key-prv key-algo [:asymmetric? :ka-algo] participant1-key-prv)

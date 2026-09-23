@@ -97,7 +97,8 @@
           (+entries :ka-algo
             {; 0 nil
              1 :dh
-             2 :ecdh})
+             2 :ecdh
+             3 :xdh})
 
           (+entries :key-algo
             {; 0  nil
@@ -112,7 +113,8 @@
              9  :dh-4096
              10 :ec-secp256r1
              11 :ec-secp384r1
-             12 :ec-secp521r1})
+             12 :ec-secp521r1
+             13 :x25519})
 
           (+entries :key-type
             {0 nil ; For removed ckey entries

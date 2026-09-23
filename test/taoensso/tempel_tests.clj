@@ -223,7 +223,7 @@
            (is (bytes/ba= ba-cnt ba-dcnt)))))]))
 
 (deftest _key-shared-create
-  (doseq [[ka-algo key-algo] [[:dh :dh-1024] [:ecdh :ec-secp256r1]]]
+  (doseq [[ka-algo key-algo] [[:dh :dh-1024] [:ecdh :ec-secp256r1] [:xdh :x25519]]]
     (let [kp1 (impl/keypair-create key-algo)
           kp2 (impl/keypair-create key-algo)]
       (is (ba=
@@ -834,13 +834,16 @@
          (is (nil?       (tempel/signed (tamper-embedded-ba ba-signed ba-aad) kp)) "Tampered AAD")]))))
 
 (deftest _core-ecdh
-  (let [receiver (impl/keypair-create :ec-secp256r1)
-        sender   (impl/keypair-create :ec-secp256r1)
-        other    (impl/keypair-create :ec-secp256r1)
-        ba-enc   (tempel/encrypt-with-2-keypairs ba-cnt receiver sender)]
-    [(is (ba= ba-cnt (tempel/decrypt-with-2-keypairs ba-enc receiver sender)))
-     (is (throws?    (tempel/decrypt-with-2-keypairs ba-enc receiver other))  "Wrong sender")
-     (is (throws?    (tempel/decrypt-with-2-keypairs ba-enc other    sender)) "Wrong receiver")]))
+  (doseq [key-algo [:ec-secp256r1 :x25519]]
+    (let [kc       #(keys/keychain {:only? true, :asymmetric-keypairs [key-algo]})
+          pub      #(tempel/keychain-thaw-public (tempel/keychain-freeze-public %)) ; Serialization roundtrip
+          receiver (kc)
+          sender   (kc)
+          other    (kc)
+          ba-enc   (tempel/encrypt-with-2-keypairs ba-cnt (pub receiver) sender)]
+      [(is (ba= ba-cnt (tempel/decrypt-with-2-keypairs ba-enc receiver (pub sender))))
+       (is (throws?    (tempel/decrypt-with-2-keypairs ba-enc receiver (pub other)))  "Wrong sender")
+       (is (throws?    (tempel/decrypt-with-2-keypairs ba-enc other    (pub sender))) "Wrong receiver")])))
 
 (deftest _core-keychains
   [(testing "Encryption with symmetric key, no embedded key ids"

@@ -405,7 +405,7 @@
     `:sender-key-id`   - ''
     `:has-hmac?`       - Does data have embedded HMAC?
     `:has-backup-key?` - Can data be decrypted with a secondary (backup) key?
-    `:key-algo`        - ∈ #{:rsa-<nbits> :dh-<nbits> :ec-<curve>}
+    `:key-algo`        - ∈ #{:rsa-<nbits> :dh-<nbits> :ec-<curve> :x25519}
     `:version`         - Integer version of data format (1, 2, etc.).
     `:kind`            - ∈ #{:encrypted-with-symmetric-key
                              :encrypted-with-password
@@ -1137,7 +1137,7 @@
 
   Takes `KeyChain`s (see `keychain`) and/or `KeyPair`s (see `keypair-create`).
   Key algorithm must support key agreement.
-  Suitable algorithms: `:dh-<nbits>`, `:ec-<curve>`.
+  Suitable algorithms: `:dh-<nbits>`, `:ec-<curve>`, `:x25519`.
 
   Encryption uses:
     - Receiver's asymmetric public  key
@@ -1238,7 +1238,7 @@
 
   Takes `KeyChain`s (see `keychain`) and/or `KeyPair`s (see `keypair-create`).
   Key algorithm must support key agreement.
-  Suitable algorithms: `:dh-<nbits>`, `:ec-<curve>`.
+  Suitable algorithms: `:dh-<nbits>`, `:ec-<curve>`, `:x25519`.
 
   Encryption uses:
     - Receiver's asymmetric public  key
