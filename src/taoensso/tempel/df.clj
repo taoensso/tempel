@@ -74,8 +74,9 @@
             {; 0 nil
              1 :sha-256-rsa
              2 :sha-512-rsa
-             3 :sha-256-ecdsa
-             4 :sha-256-ecdsa})
+             3 :sha-256-ecdsa ; Keep both SHA-256 ids for compatibility
+             4 :sha-256-ecdsa
+             5 :sha-512-ecdsa})
 
           (+entries :ka-algo
             {; 0 nil

@@ -132,7 +132,11 @@
 
                     [(is (->> (impl/sck-decrypt sck ba-iv ba-key ba-ecnt nil) enc/utf8-ba->str (= "cnt")) "No AAD")
                      (is (->> (impl/sck-decrypt sck ba-iv ba-key ba-ecnt (impl/rand-ba 128))
-                              (throws? AEADBadTagException)) "Bad AAD")]))
+                              (throws? AEADBadTagException)) "Bad AAD")
+                     (let [ba-bad (aclone ^bytes ba-ecnt)]
+                       (aset-byte ba-bad 0 (unchecked-byte (bit-xor 1 (aget ba-bad 0))))
+                       (is (throws? AEADBadTagException (impl/sck-decrypt sck ba-iv ba-key ba-bad nil))
+                         "Tampered ciphertext"))]))
 
                 (with-rand-data (mbytes 4) 256
                   (fn [ba-cnt ?ba-aad]
@@ -157,29 +161,27 @@
 
 (deftest _keypairs
   [(testing "Keypair equality"
-     [(true?  (impl/key-algo= :rsa          :rsa-1024))
-      (true?  (impl/key-algo= :rsa-1024     :rsa-1024))
-      (false? (impl/key-algo= :rsa-2048     :rsa-1024))
+     [(is (true?  (impl/key-algo= :rsa          :rsa-1024)))
+      (is (true?  (impl/key-algo= :rsa-1024     :rsa-1024)))
+      (is (false? (impl/key-algo= :rsa-2048     :rsa-1024)))
 
-      (true?  (impl/key-algo= :dh           :dh-1024))
-      (true?  (impl/key-algo= :dh-1024      :dh-1024))
-      (false? (impl/key-algo= :dh-2048      :dh-1024))
+      (is (true?  (impl/key-algo= :dh           :dh-1024)))
+      (is (true?  (impl/key-algo= :dh-1024      :dh-1024)))
+      (is (false? (impl/key-algo= :dh-2048      :dh-1024)))
 
-      (true?  (impl/key-algo= :ec           :ec-secp256r1))
-      (true?  (impl/key-algo= :ec-secp256r1 :ec-secp256r1))
-      (false? (impl/key-algo= :ec-secp384r1 :ec-secp256r1))
+      (is (true?  (impl/key-algo= :ec           :ec-secp256r1)))
+      (is (true?  (impl/key-algo= :ec-secp256r1 :ec-secp256r1)))
+      (is (false? (impl/key-algo= :ec-secp384r1 :ec-secp256r1)))
 
-      (false? (impl/key-algo= :rsa-1024     :dh-1024))
-      (false? (impl/key-algo= :rsa          :dh-1024))
-      (false? (impl/key-algo= :rsa          :ec))])
+      (is (false? (impl/key-algo= :rsa-1024     :dh-1024)))
+      (is (false? (impl/key-algo= :rsa          :dh-1024)))
+      (is (false? (impl/key-algo= :rsa          :ec)))])
 
    (testing "Keypair creation and verification"
      (let [{:keys [keypair, ba-pub key-pub, ba-prv key-prv]} (impl/keypair-create* :rsa-1024)]
        [(is (=   (impl/as-key-pub :rsa-1024 nil ba-pub)  key-pub))
         (is (=   (impl/as-key-prv :rsa-1024 nil ba-prv)  key-prv))
         (is (=   (impl/as-key-pub :rsa      nil ba-pub)  key-pub) "Loose algo")
-        (is (=   (impl/as-key-pub :rsa      nil keypair) key-pub) "Loose algo")
-        (is (=   (impl/as-key-prv :rsa      nil keypair) key-prv) "loose algo")
         (is (=   (impl/as-key-pub :rsa      nil keypair) key-pub) "Loose algo")
         (is (=   (impl/as-key-prv :rsa      nil keypair) key-prv) "Loose algo")
         (is (=   (impl/as-key-pub nil       nil keypair) key-pub)  "Auto algo")
@@ -221,12 +223,12 @@
            (is (bytes/ba= ba-cnt ba-dcnt)))))]))
 
 (deftest _key-shared-create
-  (let [kp1 (impl/keypair-create :dh-1024)
-        kp2 (impl/keypair-create :dh-1024)]
-
-    (enc/ba=
-      (impl/key-shared-create :dh :dh-1024 kp1 kp2)
-      (impl/key-shared-create :dh :dh-1024 kp2 kp1))))
+  (doseq [[ka-algo key-algo] [[:dh :dh-1024] [:ecdh :ec-secp256r1]]]
+    (let [kp1 (impl/keypair-create key-algo)
+          kp2 (impl/keypair-create key-algo)]
+      (is (ba=
+            (impl/key-shared-create ka-algo key-algo kp1 kp2)
+            (impl/key-shared-create ka-algo key-algo kp2 kp1))))))
 
 (deftest _signatures
   (let [key-algo :rsa-1024
@@ -768,6 +770,45 @@
 
               [(is (bytes/?ba=  ba-cnt (:ba-content verified)))
                (is (bytes/?ba= ?ba-aad (:ba-aad     verified)))])))]))])
+
+(defn- tamper-embedded-ba [ba-envelope ba-embedded]
+  (let [ba (aclone ^bytes ba-envelope)
+        idx (java.util.Collections/indexOfSubList (vec ba) (vec ba-embedded))]
+    (assert (<= 0 idx) "Embedded bytes must be present")
+    (aset-byte ba idx (unchecked-byte (bit-xor 1 (aget ba idx))))
+    ba))
+
+(deftest _core-tampering
+  (let [ba-aad (as-ba "authenticated public metadata")
+        ba-key (impl/rand-ba 32)]
+    (doseq [algo [:aes-gcm-128-v1 :aes-gcm-256-v1 :chacha20-poly1305-v1]
+            embed-hmac? [true false]]
+      (let [ba-enc (tempel/encrypt-with-symmetric-key ba-cnt ba-key
+                     {:sym-cipher-algo algo, :embed-hmac? embed-hmac?, :ba-aad ba-aad})
+            ba-bad (tamper-embedded-ba ba-enc ba-aad)]
+        [(is (ba= ba-cnt (tempel/decrypt-with-symmetric-key ba-enc ba-key)))
+         (is (throws?    (tempel/decrypt-with-symmetric-key ba-bad ba-key))
+           "Tampered AAD rejected with and without an embedded HMAC")]))
+
+    (doseq [[algo sig-algo] [[:rsa-1024     :sha-256-rsa]
+                             [:rsa-1024     :sha-512-rsa]
+                             [:ec-secp256r1 :sha-256-ecdsa]
+                             [:ec-secp256r1 :sha-512-ecdsa]]]
+      (let [kp        (impl/keypair-create algo)
+            ba-cnt    (as-ba "authenticated signed content")
+            ba-signed (tempel/sign ba-cnt kp {:ba-aad ba-aad, :sig-algo sig-algo})]
+        [(is (ba= ba-cnt (tempel/signed ba-signed kp {:return :ba-content})))
+         (is (nil?       (tempel/signed (tamper-embedded-ba ba-signed ba-cnt) kp)) "Tampered content")
+         (is (nil?       (tempel/signed (tamper-embedded-ba ba-signed ba-aad) kp)) "Tampered AAD")]))))
+
+(deftest _core-ecdh
+  (let [receiver (impl/keypair-create :ec-secp256r1)
+        sender   (impl/keypair-create :ec-secp256r1)
+        other    (impl/keypair-create :ec-secp256r1)
+        ba-enc   (tempel/encrypt-with-2-keypairs ba-cnt receiver sender)]
+    [(is (ba= ba-cnt (tempel/decrypt-with-2-keypairs ba-enc receiver sender)))
+     (is (throws?    (tempel/decrypt-with-2-keypairs ba-enc receiver other))  "Wrong sender")
+     (is (throws?    (tempel/decrypt-with-2-keypairs ba-enc other    sender)) "Wrong receiver")]))
 
 (deftest _core-keychains
   [(testing "Encryption with symmetric key, no embedded key ids"
