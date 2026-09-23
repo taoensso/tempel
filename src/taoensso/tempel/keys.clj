@@ -1077,7 +1077,7 @@
   #_(df/reference-data-formats :encrypted-keychain-v1)
   {:arglists
    '([ba-encrypted-keychain &
-      [{:keys [password key-sym return ba-akm backup-key backup-opts ignore-hmac?]
+      [{:keys [password key-sym return ba-akm backup-key backup-opts ignore-hmac? pbkdf-nwf-max]
         :or   {return :keychain}}]])}
 
   [ba-encrypted-keychain & [opts]]
@@ -1118,9 +1118,13 @@
                 (truss/ex-info! impl/error-msg-bad-ehmac {})))
 
             sck (impl/as-symmetric-cipher-kit sym-cipher-algo)
+            ?ba-key1b (get-backup-key-for-decryption ?ba-ekey1b opts+)
+            _ (when (and password ?pbkdf-algo (nil? ?ba-key1b))
+                (pbkdf/pbkdf-nwf-max! ?pbkdf-algo pbkdf-nwf (:pbkdf-nwf-max opts+)))
+
             ?ba-cnt
             (enc/cond
-              :if-let [ba-key1 (get-backup-key-for-decryption ?ba-ekey1b opts+)]
+              :if-let [ba-key1 ?ba-key1b]
               (try
                 (let  [ba-key1 (hmac-pass!  ba-key1)
                        ba-key2 (impl/derive-ba-key2 hash-algo ba-key1 ba-iv)]

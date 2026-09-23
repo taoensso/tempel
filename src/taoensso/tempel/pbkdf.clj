@@ -402,6 +402,19 @@
     (pbkdf-kit-derive-ba-key pbkdf-kit key-len
       ?ba-salt password rwf)))
 
+(defn pbkdf-nwf-max!
+  "Throws if `nwf` exceeds `?max-nwf`, a `:ref-<num>-msecs` keyword interpreted
+  for the given PBKDF algorithm. Numeric limits aren't supported since the
+  envelope chooses the algorithm and numeric nwfs differ between algorithms."
+  [pbkdf-algo nwf ?max-nwf]
+  (when-let   [max-nwf ?max-nwf]
+    (when-not (keyword? max-nwf)
+      (truss/ex-info! "`:pbkdf-nwf-max` must be a keyword like `:ref-1000-msecs`"
+        {:given max-nwf}))
+    (when (> (pbkdf-nwf-parse pbkdf-algo nwf) (pbkdf-nwf-parse pbkdf-algo max-nwf))
+      (truss/ex-info! "PBKDF work factor exceeds configured limit"
+        {:nwf nwf :max max-nwf}))))
+
 (comment
   [(enc/time-ms (pbkdf :scrypt-r8p1-v1         16 nil "pwd" :r100))
    (enc/time-ms (pbkdf :pbkdf2-hmac-sha-256-v1 16 nil "pwd" :r100))

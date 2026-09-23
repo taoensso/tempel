@@ -819,3 +819,18 @@
         (is= (tempel/decrypt-with-1-keypair ba-enc-named   kc1-prv {:return :_test}) {:cnt "cnt"}         "Try 1 -> succeed: exact key identified")
         (is= (tempel/decrypt-with-1-keypair ba-enc-named   kc1-pub {:return :_test}) {:err {:key-id "1"}} "Try 0 -> fail: no private keys")
         (is= (tempel/decrypt-with-1-keypair ba-enc-named   kc2-prv {:return :_test}) {:err {:key-id "1"}} "Try 0 -> fail: exact key missing")]))])
+
+(deftest _pbkdf-cost-limit
+  (let [opts {:pbkdf-algo :pbkdf2-hmac-sha-256-v1 :pbkdf-nwf :ref-50-msecs}
+        ba  (tempel/encrypt-with-password (as-ba "cnt") "pwd" opts)
+        kc  (keys/keychain {:empty? true})
+        ekc (tempel/keychain-encrypt kc (assoc opts :password "pwd"))]
+    [(is (throws? :ex-info "exceeds configured limit" (tempel/decrypt-with-password ba "pwd"       {:pbkdf-nwf-max :ref-10-msecs})))
+     (is (throws? :ex-info "exceeds configured limit" (tempel/keychain-decrypt ekc {:password "pwd" :pbkdf-nwf-max :ref-10-msecs})))
+     (is (throws? :ex-info "must be a keyword"       (tempel/decrypt-with-password ba "pwd" {:pbkdf-nwf-max 1000})))
+     (is (= {:cnt "cnt"} (tempel/decrypt-with-password ba "pwd" {:pbkdf-nwf-max :ref-50-msecs :return :_test})))
+     (is (= kc (tempel/keychain-decrypt ekc    {:password "pwd"  :pbkdf-nwf-max :ref-50-msecs})))
+     (let [kp (impl/keypair-create :rsa-1024)
+           ba (tempel/encrypt-with-password (as-ba "cnt") "pwd" (assoc opts :backup-key kp))]
+       (is (= {:cnt "cnt"} (tempel/decrypt-with-password ba nil {:backup-key kp :pbkdf-nwf-max :ref-10-msecs :return :_test}))
+         "Limit doesn't apply to backup recovery (no stretching)"))]))

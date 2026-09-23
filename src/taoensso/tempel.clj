@@ -156,6 +156,7 @@
   {:hash-algo           :sha-256
    :pbkdf-algo          pbkdf/pbkdf-kit-best-available #_:best-available
    :pbkdf-nwf           :ref-100-msecs
+   :pbkdf-nwf-max       nil
    :sym-cipher-algo     :aes-gcm-128-v1
 
    :keypair-creator     default-keypair-creator_
@@ -215,6 +216,19 @@
       time on a 2020 M1 Macbook Pro. See `pbkdf-nwf-estimate`.
 
       Default: `:ref-100-msecs`, a reasonable value for many logins.
+
+    `:pbkdf-nwf-max` (relevant only when decrypting with a password)
+      ∈ #{:ref-10-msecs :ref-50-msecs :ref-100-msecs :ref-200-msecs :ref-500-msecs
+          :ref-1000-msecs :ref-2000-msecs :ref-5000-msecs}
+
+      Optional upper limit on the envelope's password-stretching work factor,
+      checked before any derivation. Only the `:ref-<num>-msecs` keywords are
+      accepted since the envelope chooses the PBKDF algorithm, and numeric
+      work factors differ between algorithms.
+
+      Default: nil (accept any work factor supported by the algorithm).
+      Set a limit appropriate to your resource budget when accepting untrusted
+      envelopes, and also limit request size and concurrency.
 
     `:sym-cipher-algo` ∈ #{*:aes-gcm-128-v1 :aes-gcm-256-v1 :chacha20-poly1305-v1}
       The symmetric cipher algorithm to use. A cipher that supports \"AEAD\"
@@ -596,7 +610,7 @@
   #_(df/reference-data-formats :encrypted-with-password-v1)
   {:arglists
    '([ba-encrypted password &
-      [{:keys [return ba-akm backup-key backup-opts ignore-hmac?]
+      [{:keys [return ba-akm backup-key backup-opts ignore-hmac? pbkdf-nwf-max]
         :or   {return :ba-content}}]])}
 
   [ba-encrypted password & [opts]]
@@ -633,7 +647,8 @@
             ba-key1
             (or
               ba-key1b
-              (let [key-len (impl/sck-key-len sck)
+              (let [_       (pbkdf/pbkdf-nwf-max! pbkdf-algo pbkdf-nwf (:pbkdf-nwf-max opts+))
+                    key-len (impl/sck-key-len sck)
                     ba-salt (or ?ba-salt (impl/derive-ba-salt hash-algo ba-iv))
                     ba-key0 (pbkdf/pbkdf pbkdf-algo key-len ba-salt password pbkdf-nwf)]
                 (impl/derive-ba-key1 hash-algo ba-key0 ba-iv ba-akm)))
