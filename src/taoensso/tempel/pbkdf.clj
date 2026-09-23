@@ -320,7 +320,7 @@
               (:ref-500-msecs  :r500)  (get ref-nwfs :r500)
               (:ref-1000-msecs :r1000) (get ref-nwfs :r1000)
               (:ref-2000-msecs :r2000) (get ref-nwfs :r2000)
-              (:ref-5000-msecs :r5000) (get ref-nwfs :r10)
+              (:ref-5000-msecs :r5000) (get ref-nwfs :r5000)
               (:ref-max        :rmax)  rmax
               (truss/unexpected-arg! nwf
                 {:context `pbkdf-nwf-parse

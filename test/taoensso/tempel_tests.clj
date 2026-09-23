@@ -65,6 +65,10 @@
          [-29 115 -115 -87 92 119 -80 -118 76 -122 127 70 8 67 -43 114])))
 
 (deftest _pbkdf-nwf-parse
+  (doseq [algo [:scrypt-r8p1-v1 :pbkdf2-hmac-sha-256-v1 :sha-512-v1-deprecated]]
+    (is (< (pbkdf/pbkdf-nwf-parse algo :ref-2000-msecs)
+           (pbkdf/pbkdf-nwf-parse algo :ref-5000-msecs)
+           (pbkdf/pbkdf-nwf-parse algo :ref-max))))
   [(is (=  (pbkdf/pbkdf-nwf-parse :scrypt-r8p1-v1 :ref-100-msecs) 14))
    (is (=  (pbkdf/pbkdf-nwf-parse :scrypt-r8p1-v1 12)             12))
    (is (-> (pbkdf/pbkdf-nwf-parse :scrypt-r8p1-v1 (inc bytes/range-ushort)) throws?))])
