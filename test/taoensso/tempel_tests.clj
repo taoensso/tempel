@@ -1004,3 +1004,17 @@
        (is (throws? :ex-info "Failed to decrypt embedded backup key"
              (tempel/decrypt-with-symmetric-key ba nil {:backup-key kp-rsa}))
          "Backup copy inherits global AKM")])))
+
+(deftest _keychain-encrypt-key-pub
+  (let [kc     (keys/keychain {:only? true :symmetric-keys [:random]})
+        kp     (impl/keypair-create :rsa-1024)
+        kp2    (impl/keypair-create :rsa-1024)
+        ba-akm (as-ba "akm")
+        ekc    (tempel/keychain-encrypt kc {:key-pub kp :ba-akm ba-akm})]
+    [(is (= kc (tempel/keychain-decrypt ekc {:key-prv kp  :ba-akm ba-akm})))
+     (is (nil?  (tempel/keychain-decrypt ekc {:key-prv kp})) "Missing AKM")
+     (is (nil?  (tempel/keychain-decrypt ekc {:key-prv kp2 :ba-akm ba-akm})) "Wrong key")
+     (is (nil?  (tempel/keychain-decrypt (tempel/keychain-encrypt kc {:password "pwd"}) {:key-prv kp})) "Not pub-encrypted")
+     (is (throws? :ex-info "more than one" (tempel/keychain-encrypt kc {:key-pub kp :password "pwd"})))
+     (let [ekc (binding [tempel/*config* (assoc tempel/*config* :ba-akm ba-akm)] (tempel/keychain-encrypt kc {:key-pub kp}))]
+       (is (= kc (tempel/keychain-decrypt ekc {:key-prv kp :ba-akm ba-akm})) "Global AKM applies once"))]))

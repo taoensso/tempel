@@ -248,7 +248,7 @@
     :encrypted-keychain-v1
     [:public-data [3 head] [1 env] [$ ?ba-flags] [$ ?ba-aad] [$ ba-kc-pub] [$ ?key-id] [1 resv]
      :main
-     [1 hash-algo] [1 sym-cipher-algo] [1 pbkdf-algo] [2 pbkdf-nwf] [$ ba-salt] [1 resv]
+     [1 hash-algo] [1 sym-cipher-algo] [1 pbkdf-algo] [2 pbkdf-nwf] [$ ba-salt] [$ ?ba-ekey0]
      [$ ba-iv] [$ ba-ecnt] [1 resv] [$ ba-ekey] [$ ?ba-ekey1b]
      :end [1 resv] [$ ?ba-hmac] [1 resv]]
 

@@ -943,12 +943,20 @@
 
 ;;;; KeyChain encryption
 
-(def ^:private ^:const error-msg-need-pwd-or-key-sym  "Must provide `:password` or `:key-sym` in opts")
-(def ^:private ^:const error-msg-need-pwd-xor-key-sym "Must not provide both `:password` and `:key-sym` in opts")
+(def ^:private ^:const error-msg-need-key   "Must provide `:password`, `:key-sym`, or `:key-pub`/`:key-prv` in opts")
+(def ^:private ^:const error-msg-need-1-key "Must not provide more than one of `:password`, `:key-sym`, `:key-pub`/`:key-prv` in opts")
+(defn- max-1-key! [& keys] (when (> (count (filter some? keys)) 1) (truss/ex-info! error-msg-need-1-key {})))
+
+(defn- ekey0-opts
+  "Returns opts for 1kp encryption/decryption of random `ba-key0`."
+  [opts+]
+  (assoc opts+
+    :ba-aad nil :ba-akm nil ; Apply to outer envelope only (incl. global AKM)
+    :embed-hmac? false :scheme :auto :backup-key nil :backup-opts nil :return :ba-content))
 
 (defn ^:public keychain-encrypt
-  "Given a `KeyChain` and password or symmetric key, returns a byte[]
-  that includes:
+  "Given a `KeyChain` and password, symmetric key, or public key, returns
+  a byte[] that includes:
 
     - Encrypted:
       - The entire keychain
@@ -967,6 +975,8 @@
   Options:
     `:password`   - String, byte[], or char[]             as with `encrypt-with-password`
     `:key-sym`    - `KeyChain` (see `keychain`) or byte[] as with `encrypt-with-symmetric-key`
+    `:key-pub`    - `KeyChain` or `KeyPair`               as with `encrypt-with-1-keypair`
+                    (decrypt with `:key-prv`)
 
     `:ba-aad`     - See `help:aad`
     `:ba-akm`     - See `help:akm`
@@ -981,7 +991,7 @@
   {:arglists
    '([keychain &
       [{:keys
-        [password key-sym ba-content
+        [password key-sym key-pub ba-content
          ba-aad ba-akm
          hash-algo sym-cipher-algo
          pbkdf-algo pbkdf-nwf
@@ -991,10 +1001,10 @@
   ^bytes
   [keychain & [opts]]
   (have? keychain? keychain)
-  (let [{:keys [password key-sym ba-content]} opts
+  (let [{:keys [password key-sym key-pub ba-content]} opts
         {:as opts+
          :keys
-         [#_password #_key-sym #_ba-content
+         [#_password #_key-sym #_key-pub #_ba-content
           ba-aad ba-akm
           hash-algo sym-cipher-algo
           pbkdf-algo pbkdf-nwf
@@ -1003,7 +1013,7 @@
         (core/get-opts+ opts)
 
         _ (have? some? hash-algo sym-cipher-algo)
-        _ (when (and password key-sym) (truss/ex-info! error-msg-need-pwd-xor-key-sym {}))
+        _ (max-1-key! password key-sym key-pub)
 
         embed-hmac? true ; Public keys are outside the AEAD ciphertext.
         sck       (impl/as-symmetric-cipher-kit sym-cipher-algo)
@@ -1011,7 +1021,7 @@
         ba-salt   (when password (impl/derive-ba-salt hash-algo ba-iv))
         pbkdf-nwf (if   password (pbkdf/pbkdf-nwf-parse pbkdf-algo pbkdf-nwf) 0)
 
-        {:keys [ba-key1 ?ba-key-id]}
+        {:keys [ba-key1 ?ba-key-id ?ba-ekey0]}
         (enc/cond
           password
           (let [ba-key0 (pbkdf/pbkdf pbkdf-algo impl/default-sym-key-len ba-salt password pbkdf-nwf)]
@@ -1025,8 +1035,13 @@
             {:ba-key1    (impl/derive-ba-key1 hash-algo ba-key0 ba-iv ba-akm)
              :?ba-key-id (when embed-key-ids? (bytes/?str->?utf8-ba key-id))})
 
+          key-pub
+          (let [ba-key0 (impl/rand-ba impl/default-sym-key-len)]
+            {:ba-key1   (impl/derive-ba-key1 hash-algo ba-key0 ba-iv ba-akm)
+             :?ba-ekey0 (core/encrypt-with-1-keypair ba-key0 key-pub (ekey0-opts opts+))})
+
           :else
-          (truss/ex-info! error-msg-need-pwd-or-key-sym {}))
+          (truss/ex-info! error-msg-need-key {}))
 
         ?ba-ekey1b (get-backup-key-for-encryption ba-key1 opts+)
         {:keys [ba-kc-prv ba-kc-pub]} (keychain-freeze keychain)
@@ -1045,7 +1060,7 @@
 
         ba-ekc ; ba-encrypted-keychain
         (bytes/with-out [out baos]
-          [72 ba-aad ba-kc-pub ?ba-key-id ?ba-ekey1b ba-iv ba-ecnt ehmac-size]
+          [72 ba-aad ba-kc-pub ?ba-key-id ?ba-ekey0 ?ba-ekey1b ba-iv ba-ecnt ehmac-size]
 
           (df/write-head          out)
           (df/write-kid           out :envelope :encrypted-keychain-v1)
@@ -1060,7 +1075,7 @@
           (df/write-kid           out :pbkdf-algo      pbkdf-algo)
           (bytes/write-ushort     out pbkdf-nwf)
           (bytes/write-dynamic-ba out nil #_ba-salt)
-          (df/write-resv          out)
+          (bytes/write-dynamic-ba out ?ba-ekey0) ; Was resv
 
           (bytes/write-dynamic-ba out ba-iv)
           (bytes/write-dynamic-ba out ba-ecnt)
@@ -1083,7 +1098,8 @@
   "Complement of `keychain-encrypt`.
 
   Given a `ba-encrypted-keychain` byte[] as returned by `keychain-encrypt`,
-  and a password or symmetric key - checks if given password is correct.
+  and a password, symmetric key, or private key (`:key-prv`) - checks if
+  given password or key is correct.
 
   If incorrect, returns nil.
   If   correct, return value depends on `:return` option:
@@ -1098,19 +1114,17 @@
   #_(df/reference-data-formats :encrypted-keychain-v1)
   {:arglists
    '([ba-encrypted-keychain &
-      [{:keys [password key-sym return ba-akm backup-key backup-opts ignore-hmac? pbkdf-nwf-max]
+      [{:keys [password key-sym key-prv return ba-akm backup-key backup-opts ignore-hmac? pbkdf-nwf-max]
         :or   {return :keychain}}]])}
 
   [ba-encrypted-keychain & [opts]]
   (let [ba-ekc (have enc/bytes? ba-encrypted-keychain)
-        {:keys [password key-sym return] :or {return :keychain}} opts
+        {:keys [password key-sym key-prv return] :or {return :keychain}} opts
         {:keys [ba-akm backup-key backup-opts ignore-hmac?] :as opts+}
         (core/get-opts+ opts)]
 
     (impl/ba-akm! ba-akm) ; Throw, don't return nil as for a bad key
-
-    (when (and password key-sym)
-      (truss/ex-info! error-msg-need-pwd-xor-key-sym {}))
+    (max-1-key! password key-sym key-prv)
 
     (bytes/with-in [in bais] ba-ekc
       (let [env-kid         :encrypted-keychain-v1
@@ -1126,7 +1140,7 @@
             ?pbkdf-algo     (df/read-kid             in :pbkdf-algo)
             pbkdf-nwf       (bytes/read-ushort       in)
             ?ba-salt        (df/read-dynamic-?ba     in)
-            _               (df/read-resv!           in)
+            ?ba-ekey0       (df/read-dynamic-?ba     in)
             ba-iv           (df/read-dynamic-ba      in)
             ba-ecnt         (df/read-dynamic-ba      in)
             ?ba-ekey1b      (df/read-dynamic-?ba     in)
@@ -1183,8 +1197,18 @@
                         ba-cnt))))
                 (catch Throwable t nil))
 
+              key-prv
+              (try
+                (let [ba-ekey0 (have ?ba-ekey0)
+                      ba-key0  (core/decrypt-with-1-keypair ba-ekey0 key-prv (ekey0-opts opts+))
+                      ba-key1  (impl/derive-ba-key1 hash-algo ba-key0 ba-iv ba-akm)
+                      ba-key1  (hmac-pass!  ba-key1)
+                      ba-key2  (impl/derive-ba-key2 hash-algo ba-key1 ba-iv)]
+                  (impl/sck-decrypt sck ba-iv ba-key2 ba-ecnt ?ba-aad))
+                (catch Throwable t nil))
+
               :else
-              (truss/ex-info! error-msg-need-pwd-or-key-sym {}))]
+              (truss/ex-info! error-msg-need-key {}))]
 
         (when-let [ba-cnt ?ba-cnt]
           (bytes/with-in [in] ba-cnt

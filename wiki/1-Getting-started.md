@@ -178,8 +178,8 @@ Tempel's API is small, easy to use, easy to browse, and has extensive beginner-o
 | Function                                                                                                    | Use to                                                               |
 | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
 | [`keychain`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#keychain)                 | Create a new `KeyChain`, default opts are reasonable.                |
-| [`keychain-encrypt`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#keychain-encrypt) | Encrypt a `KeyChain` (with password, byte[], or another `KeyChain`). |
-| [`keychain-decrypt`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#keychain-decrypt) | Decrypt a `KeyChain` (with password, byte[], or another `KeyChain`). |
+| [`keychain-encrypt`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#keychain-encrypt) | Encrypt a `KeyChain` (with password, byte[], another `KeyChain`, or public key). |
+| [`keychain-decrypt`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#keychain-decrypt) | Decrypt a `KeyChain` (with password, byte[], another `KeyChain`, or private key). |
 
 - You'll usually have 1 `KeyChain` per user: created and encrypted on sign-up, then decrypted on log-in and retained while the user remains logged in.
 - Deref a `KeyChain` to see its contents.
