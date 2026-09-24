@@ -1118,6 +1118,7 @@
      (let [kp-rsa (impl/keypair-create :rsa-1024)
            ba-enc (tempel/encrypt-with-1-keypair ba-cnt kp-rsa {:backup-key kc-pub :asym-cipher-algo :rsa-oaep-sha-256-mgf1})]
        (is (ba= ba-cnt (tempel/decrypt-with-1-keypair ba-enc nil {:backup-key kc})) "Mixed RSA + X25519 backup"))]))
+
 (deftest _keychain-decrypt-errors
   (is (nil? (tempel/keychain-decrypt (tempel/keychain-encrypt (keys/keychain) {:key-sym (as-ba 32)}) {:password "pwd"}))
     "Password given for keychain encrypted with key")
@@ -1127,3 +1128,30 @@
       (is (throws? :ex-info "Missing optional dependency" (tempel/keychain-decrypt ekc-scrypt {:password "pwd"}))
         "Missing dependency isn't reported as a bad password"))))
 
+(deftest _fixed-envelopes ; Guard against accidental format changes, never regenerate these
+  (let [b64  #(.decode (java.util.Base64/getDecoder) ^String %)
+        fx
+        {:kc-a        "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"
+         :kc-b        "VFBMBoEBgPFUUEwIgICAAoAAgTECDYAArDAqMAUGAytlbgMhANy/+psHE6oCLaeQDzAXWTPFwaFLQ5NZy93hfxBeIwJogTICDoABrDAqMAUGAytlcAMhAHvMcN5qS4CwNX4a7LeeOsSM+NaEWX31uwUtHbutjExHgICAAwEBgACAgJDkYs7R+R2hIQc6QL32gtKADNB8n556V34i8keCE9AB01vilbyxVtZzkdzm1xmw4ZmJzI8qJ05IAox6MZqFOPTeOKC1cw4J4P7MfLSUKD+8LEeBoceLmJ2sDWVRJPqQ+QPGAwGYOoZMBCAZSDKIr9T/Nca/8WIyZhPB06QhI3ZC0/uc5KyyifTyB20sKWgOb48xiCtW/zT0p2fXlnYKgICg5vpQC1n8AtuSpVnjwQIPw9F6kuVkLs1X6RI2ntmnRKSA"
+         :pwd         "VFBMAoEBg2FhZAMBAYAGgJCVhcwKm1aCU90UfbSmPl6Wk5lJLvAyzJ8An7+1K55a2b2uw6mAgKDAPIOTEMZgXuobMOIsA6QO3V4ZdMBd5jlJ4IedUTSSxIA="
+         :sym         "VFBMAYEBg2FhZIExAwGQazW4RfRrZecZB+4OVarCZJM6Be3fAE5bwT+NYCj22nX+ItRogICgh6owb9DhuGOaD0/c0m+9tR52+C5cW79MGTDDyW9+NgOA"
+         :1kp-rsa     "VFBMA4EBg2FhZAKBMgMBAZDFRU+myrWA6hQFnwYqgFkpk2SoqrN+og90kwJmrl1jmmP2TfgAc4hIRsfOR/iaK3YY+aFgDYAc5F9g7AK0ocxZTLmWFEArsozLt/Gs/qpm6NzslemsfoZ0fXVptXhazbS4G6QJ/6/A8UBCpc/GnHhmnajlZijaErsMiEufkw6sgNzuptUu5k3YumUFXXtZF9b8dynYCJTFVBQOxZBDmb1UKxx95+qAgKDePOpeA92M987opQLwbrIDZknNCoddJ6+9XUWgeNfd/4A="
+         :1kp-x25519  "VFBMA4EBgA2BMQMBApB8MqNNGpwnhTvSpIF9j5+1kyqbQcNtR1RRLGYagqQPAaJOYY3OrDAqMAUGAytlbgMhAP77u+qyJaWV6pE8+OtfW1/V8YWv3y00QRMYI3tvUaRDoGtNnj293u9Wc7xY6PyESR8rhPKh3SHNEdVUjaC4XopqgICgry5hyOmHijZPjOKFZsaRs4w/oGHxqiaFl28VtUzknlKA"
+         :2kp-dh      "VFBMBYEBg2FhZAaBM4EzAwEBkHf5Bvize0qXVoEiTWMJ1PmTeT7IBpaAmTQznm3snDesg6Q/xoCAoIesa6kL8SFk90cNmG9lqu4xOYOUemMnbbeAsGxEb0pPgA=="
+         :2kp-x25519  "VFBMBYEBg2FhZA2BMYExAwMBkAYJ6m7MjNipWMonXs9OS0iTm6cRF6D/B8gZbiPJSz6r5rsqGICAoPLYcbQeIVSWXl8l59SkbddgBoo06IG6RHbrlw5WG+3hgA=="
+         :sig-rsa     "VFBMCYCDYWFkAoEyg2NudAMBAFXvYQ+JYnsd3aGlmEICSG+0uou2XqXUMgGRnrib4tjcidIXPtiYMr60BaWTV/fYxS7asMyThlhlmy61og+7xL2OsArHeA89/o8H962Fhnhw9UHKWQTdQ7Tse+WeuNoDw7YMmWvneWLP4NVmFEJlcGw0mx8xWHkc6VZ9IyMh0P76gA=="
+         :sig-ed25519 "VFBMCYCDYWFkDoEyg2NudAMIwHb0/F8fWqWwv7rgksNoXij5uS9LhL+sCLh+fwy0sqcd98UghTMmNPFRxi6Udr7tQ51yrM39e+1tsXzkQk+dDgqA"}
+
+        kc-b (tempel/keychain-decrypt (b64 (:kc-b fx)) {:key-sym (byte-array (range 32))})
+        kc-a (tempel/keychain-decrypt (b64 (:kc-a fx)) {:key-prv kc-b})
+        opts {:ba-akm ba-akm :return :_test}
+        exp  {:aad "aad" :cnt "cnt"}]
+
+    [(is (= (tempel/decrypt-with-password      (b64 (:pwd         fx)) "pwd"     opts) exp) "Password")
+     (is (= (tempel/decrypt-with-symmetric-key (b64 (:sym         fx)) kc-a      opts) exp) "Symmetric key")
+     (is (= (tempel/decrypt-with-1-keypair     (b64 (:1kp-rsa     fx)) kc-a      opts) exp) "1 keypair: RSA (hybrid)")
+     (is (= (tempel/decrypt-with-1-keypair     (b64 (:1kp-x25519  fx)) kc-b {:return :_test}) {:cnt "cnt"}) "1 keypair: X25519 (simple)")
+     (is (= (tempel/decrypt-with-2-keypairs    (b64 (:2kp-dh      fx)) kc-a kc-a opts) exp) "2 keypairs: DH")
+     (is (= (tempel/decrypt-with-2-keypairs    (b64 (:2kp-x25519  fx)) kc-b kc-b opts) exp) "2 keypairs: X25519")
+     (is (= (tempel/signed                     (b64 (:sig-rsa     fx)) kc-a      opts) exp) "Signature: RSA")
+     (is (= (tempel/signed                     (b64 (:sig-ed25519 fx)) kc-b      opts) exp) "Signature: Ed25519")]))
