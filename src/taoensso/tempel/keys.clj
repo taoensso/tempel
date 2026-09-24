@@ -991,7 +991,7 @@
   See Tempel Wiki for detailed usage info, common patterns, examples, etc.
 
   Options:
-    `:password`   - String, byte[], or char[]             as with `encrypt-with-password`
+    `:password`   - String, char[], or UTF-8 byte[]       as with `encrypt-with-password`
     `:key-sym`    - `KeyChain` (see `keychain`) or byte[] as with `encrypt-with-symmetric-key`
     `:key-pub`    - `KeyChain` or `KeyPair`               as with `encrypt-with-1-keypair`
                     (decrypt with `:key-prv`)

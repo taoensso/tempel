@@ -361,7 +361,7 @@
        Important for preventing rainbow/dictionary attacks, etc.
 
     `password`
-       A password in the form of a string, byte[], or char[].
+       A password in the form of a string, char[], or UTF-8 byte[].
        Arrays may be preferable in some very high security environments
        since they can be manually cleared (mutated) immediately after use,
        leading to less time in memory.

@@ -342,6 +342,38 @@ This is an advanced version of the last example and would require a custom schem
 - Have the owner generate a random symmetric key for the group/room.
 - Have the owner distribute the shared key to every other user via [`encrypt-with-1-keypair`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#encrypt-with-1-keypair) or [`encrypt-with-2-keypairs`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#encrypt-with-2-keypairs), etc.
 
+### Share an organization's keychain
+
+Example use case: encrypt an organization's data once, while letting each member unlock it with their own private key.
+
+Create one shared `KeyChain`, then encrypt a copy for each member using their trusted public keychain:
+
+```clojure
+(let [org-keychain          (tempel/keychain {})
+      alice-secret-keychain (tempel/keychain {})
+      alice-public-keychain
+      (tempel/keychain-thaw-public
+        (tempel/keychain-freeze-public alice-secret-keychain))
+
+      ba-encrypted-keychain
+      (tempel/keychain-encrypt org-keychain {:key-pub alice-public-keychain})
+
+      ba-encrypted-data
+      (tempel/encrypt-with-symmetric-key (tempel/as-ba "Organization secret") org-keychain)
+
+      ;; Alice unlocks her copy of the shared keychain, then the data:
+      alice-org-keychain
+      (tempel/keychain-decrypt ba-encrypted-keychain {:key-prv alice-secret-keychain})]
+
+  (tempel/utf8-ba->str
+    (tempel/decrypt-with-symmetric-key ba-encrypted-data alice-org-keychain)))
+;; => "Organization secret"
+```
+
+Repeat `keychain-encrypt` with the same `org-keychain` for each member. Keep these encrypted copies in trusted storage: public-key encryption alone doesn't prove who shared the keychain.
+
+Anyone with the shared keychain can read and write the shared data. Removing their encrypted copy won't revoke keys they've already obtained; to exclude a former member from future data, use a new shared keychain and distribute it only to remaining members.
+
 # Public data
 
 Tempel has extensive support for "**Additional Authenticated Data**" / "**Additional Associated Data**", see [`help:aad`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#help:aad) for details.

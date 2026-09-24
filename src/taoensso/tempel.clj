@@ -562,7 +562,7 @@
     - Optional unencrypted AAD (see `help:aad`)
     - Envelope data necessary for decryption (specifies algorithms, etc.)
 
-  Takes a password (string, byte[], or char[]).
+  Takes a password (string, char[], or UTF-8 byte[]).
   Password will be \"stretched\" using an appropriate \"Password-Based Key
   Derivation Function\" (PBKDF).
 
@@ -644,7 +644,7 @@
     `:ba-aad`     - Returns verified unencrypted embedded ?byte[] AAD
     `:map`        - Returns {:keys [ba-aad ba-content]} map
 
-  Takes a password (string, byte[], or char[]). Password will be \"stretched\"
+  Takes a password (string, char[], or UTF-8 byte[]). Password will be \"stretched\"
   using an appropriate \"Password-Based Key Derivation Function\" (PBKDF).
 
   Will throw on decryption failure (bad password, etc.)."
