@@ -10,7 +10,7 @@
    [taoensso.tempel.keys  :as keys]
    [taoensso.tempel       :as tempel])
 
-  (:import [javax.crypto AEADBadTagException BadPaddingException]))
+  (:import [javax.crypto AEADBadTagException]))
 
 (comment
   (remove-ns      'taoensso.tempel-tests)
@@ -113,7 +113,10 @@
                       ba-ecnt (impl/sck-encrypt sck ba-iv ba-key ba-cnt ba-aad)]
 
                   [(is (->> (impl/sck-decrypt sck ba-iv ba-key            ba-ecnt ba-aad) enc/utf8-ba->str (= "cnt")))
-                   (is (->> (impl/sck-decrypt sck ba-iv (as-ba 32 "!pwd") ba-ecnt ba-aad) (throws? #{AEADBadTagException BadPaddingException})) "Bad key")])
+                   (let [dec #(impl/sck-decrypt sck ba-iv (as-ba 32 "!pwd") ba-ecnt ba-aad)]
+                     (if can-aad?
+                       (is (throws? AEADBadTagException (dec)) "Bad key")
+                       (is (not (ba= ba-cnt (truss/catching (dec)))) "Bad key")))]) ; CBC may yield garbage
 
                 (if-not can-aad?
                   :skip-aad-tests
