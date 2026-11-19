@@ -618,7 +618,9 @@
     (defonce kpc (keypair-create {:buffer-len 128, :n-threads [:perc 10]}))
     (kpc :rsa-2048) ; Slow first call, keypair generated on demand
     (kpc :rsa-2048) ; Fast subsequent calls, will use cache of up to
-                    ; 128 pre-generated keypairs"
+                    ; 128 pre-generated keypairs
+
+  Cache isn't used within `with-srng`, etc."
   [&
    [{:keys [buffer-len n-threads]
      :or   {buffer-len 16
@@ -630,15 +632,19 @@
     (fn keypair-get
       ([key-algo needs] (keypair-get (key-algo! key-algo needs)))
       ([key-algo      ]
-       (let [fn_
-             (enc/swap-val! fns_ key-algo
-               (fn [?fn_]
-                 (or
-                   ?fn_
-                   (delay
-                     (enc/pre-cache buffer-len shared-fp
-                       (fn keypair-get [] (keypair-create key-algo)))))))]
-         (@fn_))))))
+       (if (thread-bound? #'*srng*)
+         ;; Buffer is shared and filled async, so must keep it clear
+         ;; of custom (e.g. deterministic) rng in both directions
+         (keypair-create key-algo)
+         (let [fn_
+               (enc/swap-val! fns_ key-algo
+                 (fn [?fn_]
+                   (or
+                     ?fn_
+                     (delay
+                       (enc/pre-cache buffer-len shared-fp
+                         (fn keypair-get [] (keypair-create key-algo)))))))]
+           (@fn_)))))))
 
 (defn keypair-create*
   "Like `keypair-create` but returns {:keys [keypair key-prv key-pub ba-prv ba-pub ...]}."

@@ -35,7 +35,12 @@
         k2 (impl/with-srng-insecure-deterministic!!! 10 (:key-prv (impl/keypair-create* :rsa-2048)))
         k3 (impl/with-srng-insecure-deterministic!!! 11 (:key-prv (impl/keypair-create* :rsa-2048)))]
     [(is    (= k1 k2))
-     (is (not= k1 k3))]))
+     (is (not= k1 k3))
+     (let [kpc (impl/keypair-creator)
+           n_  (atom 0)]
+       (impl/with-srng (fn [] (swap! n_ inc) (enc/secure-rng)) (kpc :x25519))
+       (Thread/sleep 50) ; Allow time for any async buffering
+       (is (= @n_ 1) "Custom srng is used, but never for shared keypair buffer"))]))
 
 (deftest _hash-ba
   [(let [h (partial impl/hash-ba-concat :sha-256)
