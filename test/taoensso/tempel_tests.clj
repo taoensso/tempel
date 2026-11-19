@@ -71,7 +71,9 @@
            (pbkdf/pbkdf-nwf-parse algo :ref-max))))
   [(is (=  (pbkdf/pbkdf-nwf-parse :scrypt-r8p1-v1 :ref-100-msecs) 14))
    (is (=  (pbkdf/pbkdf-nwf-parse :scrypt-r8p1-v1 12)             12))
-   (is (-> (pbkdf/pbkdf-nwf-parse :scrypt-r8p1-v1 (inc bytes/range-ushort)) throws?))])
+   (is (-> (pbkdf/pbkdf-nwf-parse :scrypt-r8p1-v1 (inc bytes/range-ushort)) throws?))
+   (is (throws? :ex-info "work factor >= 1" (pbkdf/pbkdf :sha-512-v1-deprecated 32 (as-ba "salt") "pwd" 0))
+     "Zero rounds would ignore password")])
 
 (defn- mbytes ^long [n] (long (Math/floor (* (double n) 1024 1024))))
 

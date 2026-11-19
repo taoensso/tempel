@@ -98,6 +98,9 @@
   ^bytes
   [key-len ?ba-salt ba-secret n-iterations]
 
+  (when-not (pos? (long n-iterations)) ; Else key would be unhashed salt+secret prefix
+    (truss/ex-info! "PBKDF `:sha-512-v1-deprecated` requires work factor >= 1" {}))
+
   (let [ba-salted-secret (bytes/ba-join ?ba-salt ba-secret) ; hmac would be better
         md (impl/as-message-digest :sha-512)]
 
