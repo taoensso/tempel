@@ -166,6 +166,7 @@
    :embed-key-ids?      true
    :embed-hmac?         true
    :ignore-hmac?        false
+   :require-hmac?       false
 
    :backup-key          nil
    :backup-opts         nil})
@@ -303,6 +304,18 @@
 
       For trusted offline recovery only: this also permits reading legacy
       keychains/CBC data without an HMAC. Re-encrypt recovered data promptly.
+
+    `:require-hmac?` (relevant only when decrypting)
+      Should data without an embedded HMAC be rejected when decrypting?
+
+      Default: false, to support data written with `:embed-hmac? false`.
+      Recommended if all your data was written with `:embed-hmac? true`
+      (the default). Has no effect with `:ignore-hmac? true`.
+
+      The HMAC also authenticates what's outside the encrypted content,
+      including the kind of output. Without this option an attacker could
+      remove the HMAC and (for example) have an encrypted keychain decrypted
+      as ordinary data by code that uses the same key for both.
 
     `:backup-key`
       When encrypting:
@@ -621,12 +634,12 @@
   #_(df/reference-data-formats :encrypted-with-password-v1)
   {:arglists
    '([ba-encrypted password &
-      [{:keys [return ba-akm backup-key backup-opts ignore-hmac? pbkdf-nwf-max]
+      [{:keys [return ba-akm backup-key backup-opts ignore-hmac? require-hmac? pbkdf-nwf-max]
         :or   {return :ba-content}}]])}
 
   [ba-encrypted password & [opts]]
   (let [{:keys [return] :or {return :ba-content}} opts
-        {:keys [ba-akm backup-key backup-opts ignore-hmac?] :as opts+}
+        {:keys [ba-akm backup-key backup-opts ignore-hmac? require-hmac?] :as opts+}
         (get-opts+ opts)]
 
     (bytes/with-in [in bais] ba-encrypted
@@ -647,7 +660,7 @@
             ehmac*          (impl/read-ehmac*       in bais ba-encrypted)
             _               (df/read-resv!          in)
 
-            _ (impl/ehmac-required! ehmac* ignore-hmac? (impl/ehmac-required? sym-cipher-algo))
+            _ (impl/ehmac-required! ehmac* ignore-hmac? (or require-hmac? (impl/ehmac-required? sym-cipher-algo)))
 
             hmac-pass!
             (fn [ba-key1]
@@ -771,12 +784,12 @@
   #_(df/reference-data-formats :encrypted-with-symmetric-key-v1)
   {:arglists
    '([ba-encrypted key-sym &
-      [{:keys [return ba-akm backup-key backup-opts ignore-hmac?]
+      [{:keys [return ba-akm backup-key backup-opts ignore-hmac? require-hmac?]
         :or   {return :ba-content}}]])}
 
   [ba-encrypted key-sym & [opts]]
   (let [{:keys [return] :or {return :ba-content}} opts
-        {:keys [ba-akm backup-key backup-opts ignore-hmac?] :as opts+}
+        {:keys [ba-akm backup-key backup-opts ignore-hmac? require-hmac?] :as opts+}
         (get-opts+ opts)]
 
     (bytes/with-in [in bais] ba-encrypted
@@ -795,7 +808,7 @@
             ehmac*          (impl/read-ehmac*        in bais ba-encrypted)
             _               (df/read-resv!           in)
 
-            _ (impl/ehmac-required! ehmac* ignore-hmac? (impl/ehmac-required? sym-cipher-algo))
+            _ (impl/ehmac-required! ehmac* ignore-hmac? (or require-hmac? (impl/ehmac-required? sym-cipher-algo)))
 
             hmac-pass!
             (fn [ba-key1]
@@ -987,12 +1000,12 @@
   #_(df/reference-data-formats :encrypted-with-1-keypair-<type>-v1)
   {:arglists
    '([ba-encrypted receiver-key-prv &
-      [:keys [return ba-akm backup-key backup-opts ignore-hmac?]
+      [:keys [return ba-akm backup-key backup-opts ignore-hmac? require-hmac?]
        :or   {return :ba-content}]])}
 
   [ba-encrypted receiver-key-prv & [opts]]
   (let [{:keys [return] :or {return :ba-content}} opts
-        {:keys [ba-akm backup-key backup-opts ignore-hmac?] :as opts+}
+        {:keys [ba-akm backup-key backup-opts ignore-hmac? require-hmac?] :as opts+}
         (get-opts+ opts)]
 
     (bytes/with-in [in bais] ba-encrypted
@@ -1006,7 +1019,8 @@
 
           :encrypted-with-1-keypair-simple-v1
           #_(df/reference-data-formats :encrypted-with-1-keypair-simple-v1)
-          (let [_
+          (let [_ (impl/ehmac-required! nil ignore-hmac? require-hmac?) ; No HMAC support
+                _
                 (when ba-akm
                   (truss/ex-info! "Failed to decrypt Tempel data (no AKM support)" {}))
 
@@ -1051,7 +1065,7 @@
                 ehmac*           (impl/read-ehmac*        in bais ba-encrypted)
                 _                (df/read-resv!           in)
 
-                _ (impl/ehmac-required! ehmac* ignore-hmac? (impl/ehmac-required? sym-cipher-algo))
+                _ (impl/ehmac-required! ehmac* ignore-hmac? (or require-hmac? (impl/ehmac-required? sym-cipher-algo)))
 
                 hmac-pass!
                 (fn [ba-key1]
@@ -1217,12 +1231,12 @@
   #_(df/reference-data-formats :encrypted-with-2-keypairs-v1)
   {:arglists
    '([ba-encrypted receiver-key-prv sender-key-pub &
-      [{:keys [return ba-akm backup-key backup-opts ignore-hmac?]
+      [{:keys [return ba-akm backup-key backup-opts ignore-hmac? require-hmac?]
         :or   {return :ba-content}}]])}
 
   [ba-encrypted receiver-key-prv sender-key-pub & [opts]]
   (let [{:keys [return] :or {return :ba-content}} opts
-        {:keys [ba-akm backup-key backup-opts ignore-hmac?] :as opts+}
+        {:keys [ba-akm backup-key backup-opts ignore-hmac? require-hmac?] :as opts+}
         (get-opts+ opts)]
 
     (bytes/with-in [in bais] ba-encrypted
@@ -1245,7 +1259,7 @@
             ehmac*          (impl/read-ehmac*        in bais ba-encrypted)
             _               (df/read-resv!           in)
 
-            _ (impl/ehmac-required! ehmac* ignore-hmac? (impl/ehmac-required? sym-cipher-algo))
+            _ (impl/ehmac-required! ehmac* ignore-hmac? (or require-hmac? (impl/ehmac-required? sym-cipher-algo)))
 
             hmac-pass!
             (fn [ba-key1]

@@ -55,7 +55,8 @@
               (let [base-opts
                     (->
                       decrypt-opts
-                      (dissoc :ba-aad :ba-akm))]
+                      (dissoc :ba-aad :ba-akm)
+                      (assoc  :require-hmac? false))] ; As when encrypting
                 (assoc
                   (core/get-opts+ base-opts backup-opts)
                   :backup-key nil :backup-opts nil
@@ -952,7 +953,8 @@
   [opts+]
   (assoc opts+
     :ba-aad nil :ba-akm nil ; Apply to outer envelope only (incl. global AKM)
-    :embed-hmac? false :scheme :auto :backup-key nil :backup-opts nil :return :ba-content))
+    :embed-hmac? false :require-hmac? false
+    :scheme :auto :backup-key nil :backup-opts nil :return :ba-content))
 
 (defn ^:public keychain-encrypt
   "Given a `KeyChain` and password, symmetric key, or public key, returns

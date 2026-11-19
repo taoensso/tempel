@@ -45,6 +45,16 @@ It is **critical** to always:
 
 Please err on the side of being **overly cautious**.
 
+# Can I use the same key for different purposes?
+
+**Best avoided**. Tempel's current data formats don't bind keys to a purpose, so prefer a separate key/pair for each of: encrypting keychains, encrypting other data, and backup keys.
+
+This matters most if your application can be made to decrypt data supplied by an attacker and reveal the result. An encrypted keychain could then be presented as ordinary encrypted data, revealing its private keys.
+
+If you must share a key or password, use a different [AKM](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#help:akm) for each purpose. AKM doesn't protect backup recovery though, so backup keys should always be kept for backup use only.
+
+Decrypting with `:require-hmac? true` (see [`*config*`](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/api/taoensso.tempel#*config*)) also prevents one kind of Tempel output (e.g. an encrypted keychain) from being read as another. You can use this if none of your data was written with `:embed-hmac? false`.
+
 # How fast is Tempel?
 
 Tempel is a pretty thin wrapper over the JVM's native crypto facilities and **shouldn't add significant overhead itself**.

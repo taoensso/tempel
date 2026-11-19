@@ -1063,7 +1063,7 @@
   (def ^:const error-msg-bad-pwd        "Failed to decrypt Tempel data (with password)")
   (def ^:const error-msg-bad-ehmac      "Unexpected HMAC: bad decryption key, or corrupt data.")
   (def ^:const error-msg-missing-ehmac
-    (str "Missing HMAC: encrypted keychains and CBC data require an embedded HMAC. "
+    (str "Missing HMAC: required for encrypted keychains, CBC data, and with `:require-hmac? true`. "
       "To recover trusted legacy data, decrypt with `:ignore-hmac? true`, then re-encrypt.")))
 
 (defn ehmac-required?

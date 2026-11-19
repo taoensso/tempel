@@ -949,9 +949,22 @@
           (is (throws? :ex-info "Missing HMAC" (tempel/keychain-decrypt bad      {:key-sym key-sym})))
           (is (= kc (tempel/keychain-decrypt stripped {:key-sym key-sym :ignore-hmac? true})))]))
 
-     (testing "AEAD data without an HMAC is still accepted"
+     (testing "AEAD data without an HMAC is accepted unless `:require-hmac?`"
        (let [ba (tempel/encrypt-with-symmetric-key ba-cnt key-sym {:embed-hmac? false})]
-         (is (ba= ba-cnt (tempel/decrypt-with-symmetric-key ba key-sym)))))]))
+         [(is (ba= ba-cnt (tempel/decrypt-with-symmetric-key ba key-sym)))
+          (is (throws? :ex-info "Missing HMAC" (tempel/decrypt-with-symmetric-key ba key-sym {:require-hmac? true})))]))
+
+     (testing "Global `:require-hmac?` allows HMAC-less inner (backup, keychain) envelopes"
+       (binding [tempel/*config* (assoc tempel/*config* :require-hmac? true)]
+         (let [kc (keys/keychain {:only? true :symmetric-keys [:random]})
+               ba (tempel/encrypt-with-symmetric-key ba-cnt key-sym {:backup-key kp-rsa})]
+           [(is (ba= ba-cnt (tempel/decrypt-with-symmetric-key ba nil {:backup-key kp-rsa})))
+            (is (= kc (tempel/keychain-decrypt (tempel/keychain-encrypt kc {:key-pub kp-rsa}) {:key-prv kp-rsa})))
+            (is (throws? :ex-info "Missing HMAC" (tempel/decrypt-with-symmetric-key (strip-ehmac ba) nil {:backup-key kp-rsa})))
+            (is (throws? :ex-info "Missing HMAC"
+                  (tempel/decrypt-with-1-keypair
+                    (tempel/encrypt-with-1-keypair key-sym kp-rsa {:scheme :simple :embed-hmac? false}) kp-rsa))
+              "Simple scheme has no HMAC")])))]))
 
 (deftest _signature-hash-algos
   [(let [kp (impl/keypair-create :rsa-1024)]
