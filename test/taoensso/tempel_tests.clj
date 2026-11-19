@@ -647,7 +647,9 @@
            kc1 (-> (keys/keychain) (keys/keychain-add-symmetric-key :random {:key-id "a"}))
            kc2 (-> (keys/keychain) (keys/keychain-add-symmetric-key :random {:key-id "a"}))]
 
-       [(is= (dec (enc ba-cnt kc1 {              }) kc1 {               }) {:cnt "cnt"            } "-AKM, -AAD")
+       [(is (throws? :ex-info "must be a byte[]" (enc ba-cnt kc1 {:ba-akm "akm"})) "Non-byte[] AKM isn't silently ignored")
+        (is (throws? :ex-info "must be a byte[]" (tempel/keychain-decrypt (tempel/keychain-encrypt kc1 {:key-sym (as-ba 32 "k")}) {:key-sym (as-ba 32 "k") :ba-akm "akm"})) "Nor mistaken for a bad key")
+        (is= (dec (enc ba-cnt kc1 {              }) kc1 {               }) {:cnt "cnt"            } "-AKM, -AAD")
         (is= (dec (enc ba-cnt kc1 {:ba-akm ba-akm}) kc1 {:ba-akm ba-akm }) {:cnt "cnt"            } "+AKM, -AAD")
         (is= (dec (enc ba-cnt kc1 {:ba-aad ba-aad}) kc1 {               }) {:cnt "cnt", :aad "aad"} "-AKM, +AAD")
         (is= (dec (enc ba-cnt kc1 {:ba-aad ba-aad

@@ -1016,9 +1016,15 @@
   (def ^:private const-ba-derive-key1->key2  (byte-array [-20 79 35 72 -46 -91 -11 -32 -26 -67 -102 102 -77 103 -74 94 26 -20 1 11 66 -26 74 87 -68 -119 -68 -122 -92 51 -87 80 -12 -78 109 -58 -9 59 -41 -31 -81 -1 36 -18 5 -54 25 50 -75 4 45 -24 -109 98 -73 -61 -18 59 96 -91 77 -75 -32 -41]))
   (def ^:private const-ba-derive-key1->ehmac (byte-array [-126 3 -69 42 -54 125 -116 -30 20 -64 -96 -16 24 80 22 112 -57 25 -68 25 81 113 9 -105 -25 40 37 95 75 -11 41 30 -120 98 -74 -106 -36 96 54 126 52 -26 3 97 -86 -101 -41 -36 107 9 93 119 59 -32 -79 -100 -81 41 36 69 125 -14 -26 26])))
 
+(defn ba-akm! [ba-akm]
+  (when-not (or (nil? ba-akm) (enc/bytes? ba-akm)) ; Else would be silently ignored
+    (truss/ex-info! "`:ba-akm` must be a byte[]" {:given {:type (type ba-akm)}})))
+
 (do
   (defn derive-ba-salt  "ba-iv -> ba-salt"                 ^bytes [hash-algo ba-iv               ] (hmac hash-algo ba-iv                const-ba-derive-iv->salt))
-  (defn derive-ba-key1  "User/password key (key0) -> key1" ^bytes [hash-algo ba-key0 ba-iv ba-akm] (hmac hash-algo ba-key0 ba-iv ba-akm const-ba-derive-key0->key1))
+  (defn derive-ba-key1  "User/password key (key0) -> key1" ^bytes [hash-algo ba-key0 ba-iv ba-akm]
+    (ba-akm! ba-akm)
+    (hmac hash-algo ba-key0 ba-iv ba-akm const-ba-derive-key0->key1))
   (defn derive-ba-ehmac "key1 -> embedded HMAC"            ^bytes [hash-algo ba-key1 ba-iv ba-cnt] (hmac hash-algo ba-key1 ba-iv ba-cnt const-ba-derive-key1->ehmac))
   (defn derive-ba-key2  "key1 -> final key (key2)"         ^bytes [hash-algo ba-key1 ba-iv       ] (hmac hash-algo ba-key1 ba-iv        const-ba-derive-key1->key2)))
 

@@ -1098,6 +1098,8 @@
         {:keys [ba-akm backup-key backup-opts ignore-hmac?] :as opts+}
         (core/get-opts+ opts)]
 
+    (impl/ba-akm! ba-akm) ; Throw, don't return nil as for a bad key
+
     (when (and password key-sym)
       (truss/ex-info! error-msg-need-pwd-xor-key-sym {}))
 
