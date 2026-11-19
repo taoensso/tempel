@@ -485,7 +485,7 @@
 
   Thaw (deserialize) output with: `keychain-thaw-public`."
   ^bytes [keychain]
-  (get (keys/keychain-freeze keychain) :ba-kc-pub))
+  (aclone ^bytes (get (keys/keychain-freeze keychain) :ba-kc-pub))) ; Copy of cached
 
 (defn keychain-thaw-public
   "Complement of `keychain-freeze-public`.

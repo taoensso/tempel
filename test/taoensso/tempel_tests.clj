@@ -338,6 +338,11 @@
    (is (throws? (tempel/encrypt-with-symmetric-key (as-ba "cnt") :random))
      "Can't encrypt with a random key that'd be lost")
 
+   (let [ba (impl/rand-ba 32)
+         kc (keys/keychain-add-symmetric-key (keys/keychain {:empty? true}) ba)]
+     (java.util.Arrays/fill ba (byte 0))
+     (is (not (ba= ba (-> (get @kc "1") :key-sym deref :key-sym))) "Keychain keeps own copy of given key"))
+
    (testing "Key priority by index path"
      (let [kc (keys/keychain {:symmetric-keys      [#_1 :random #_2 :random]
                               :asymmetric-keypairs [#_3 :rsa-1024 #_4 :rsa-2048 #_5 :ec-secp256r1 #_6 :dh-2048 #_7 :dh-2048]})]

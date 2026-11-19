@@ -160,7 +160,7 @@
 
           (enc/bytes? x-key)
           (if (>= (alength ^bytes x-key) impl/default-sym-key-len)
-            (ChainKey. :sym :symmetric nil ?key-id x-key)
+            (ChainKey. :sym :symmetric nil ?key-id (aclone ^bytes x-key)) ; Own copy
             (fail!
               (truss/ex-info
                 (format "Symmetric keys must be at least %s bytes long" impl/default-sym-key-len)
