@@ -335,6 +335,9 @@
               (keys/keychain-add-symmetric-key :random))]
      (is (= (set (keys @kc)) #{"2" "3"}) "Auto key ids never replace existing keys"))
 
+   (is (throws? (tempel/encrypt-with-symmetric-key (as-ba "cnt") :random))
+     "Can't encrypt with a random key that'd be lost")
+
    (testing "Key priority by index path"
      (let [kc (keys/keychain {:symmetric-keys      [#_1 :random #_2 :random]
                               :asymmetric-keypairs [#_3 :rsa-1024 #_4 :rsa-2048 #_5 :ec-secp256r1 #_6 :dh-2048 #_7 :dh-2048]})]

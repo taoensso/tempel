@@ -147,7 +147,8 @@
 
         :sym
         (enc/cond
-          (contains? #{:random :random-128-bit :random-256-bit :random-512-bit} x-key)
+          (and ?key-id ; Only for `KeyChain` entries, else new key would be lost
+            (contains? #{:random :random-128-bit :random-256-bit :random-512-bit} x-key))
           (let [ba-len
                 (case x-key
                   ;; Specific sizes currently undocumented
