@@ -63,7 +63,14 @@ See the `*config*` [docstring](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/
           {:password   user-password
            :backup-key admin-public-keychain})]
 
-    (swap! my-users-db_ assoc user-id encrypted-keychain)
+    ;; Create account only if user doesn't already exist, otherwise
+    ;; we'd replace (and lose) the existing user's `KeyChain`!
+    (swap! my-users-db_
+      (fn [db]
+        (if (contains? db user-id)
+          (throw (ex-info "User already exists" {:user-id user-id}))
+          (assoc db user-id encrypted-keychain))))
+
     unencrypted-keychain))
 
 (user-create-new-account! "Alice" "alice-secret-password")
@@ -145,7 +152,8 @@ See the `*config*` [docstring](https://cljdoc.org/d/com.taoensso/tempel/CURRENT/
 
             (let [new-encrypted-keychain
                   (tempel/keychain-encrypt decrypted-keychain
-                    {:password new-user-password})]
+                    {:password   new-user-password
+                     :backup-key admin-public-keychain})] ; Keep for password resets
 
               (password-rate-limiter :rl/reset user-id)
               (swap! my-users-db_ assoc user-id new-encrypted-keychain)
