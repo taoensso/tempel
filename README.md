@@ -1,5 +1,5 @@
 <a href="https://www.taoensso.com/clojure" title="More stuff by @ptaoussanis at www.taoensso.com"><img src="https://www.taoensso.com/open-source.png" alt="Taoensso open source" width="340"/></a>  
-[**API**][cljdoc] | [**Wiki**][GitHub wiki] | [Slack][] | Latest release: [v1.1.0](../../releases/tag/v1.1.0) (2025-12-10)
+[**API**][cljdoc] | [**Wiki**][GitHub wiki] | [Slack][] | Latest release: [v1.1.0](../../releases/tag/v1.1.0) (2025-12-10) | Pre-release: [v1.2.0-RC1](../../releases/tag/v1.2.0-RC1) (2026-11-21)
 
 [![Clj tests][Clj tests SVG]][Clj tests URL]
 [![Graal tests][Graal tests SVG]][Graal tests URL]
@@ -15,6 +15,8 @@ More than another collection of crypto utils, Tempel offers a **coherent and opi
 Its [tiny API](../../wiki/1-Getting-started#api-overview) and focus on **smart keychains** helps shield you from unnecessary and error-prone complexity, greatly simplifying the most common data security needs.
 
 👉 Tempel is [NOT intended](../../wiki/3-Faq#can-i-decrypt-tempel-data-with-other-tools) for interop with other cryptographic tools/APIs!
+
+👉 Trying **v1.2.0-RC1**? Please check the [CHANGELOG](CHANGELOG.md) for security fixes and upgrade notes.
 
 ## Why Tempel?
 
