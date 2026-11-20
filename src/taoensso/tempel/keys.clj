@@ -105,14 +105,15 @@
   clojure.lang.IHashEq (hasheq [this] (impl/cnt-hash key-cnt))
   clojure.lang.IDeref
   (deref [_]
-    (conj
-      (case key-type
-        :sym {:key-type :sym, :key-algo key-algo, :symmetric?  true, :secret? true,                  :key-sym key-cnt, :length (alength ^bytes key-cnt)}
-        :prv {:key-type :prv, :key-algo key-algo, :asymmetric? true, :secret? true,  :private? true, :key-prv key-cnt}
-        :pub {:key-type :pub, :key-algo key-algo, :asymmetric? true, :secret? false, :public?  true, :key-pub key-cnt}
-        (truss/unexpected-arg! key-type {:expected #{:sym :pub :prv}}))
+    (let [key-cnt (if (identical? key-type :sym) (aclone ^bytes key-cnt) key-cnt)] ; Own copy
+      (conj
+        (case key-type
+          :sym {:key-type :sym, :key-algo key-algo, :symmetric?  true, :secret? true,                  :key-sym key-cnt, :length (alength ^bytes key-cnt)}
+          :prv {:key-type :prv, :key-algo key-algo, :asymmetric? true, :secret? true,  :private? true, :key-prv key-cnt}
+          :pub {:key-type :pub, :key-algo key-algo, :asymmetric? true, :secret? false, :public?  true, :key-pub key-cnt}
+          (truss/unexpected-arg! key-type {:expected #{:sym :pub :prv}}))
 
-      (enc/assoc-some {:key-cnt key-cnt} :key-id ?key-id))))
+        (enc/assoc-some {:key-cnt key-cnt} :key-id ?key-id)))))
 
 (enc/def-print-impl [ck ChainKey] (str "#" ck))
 (defn ^:public chainkey? [x] (instance? ChainKey x))
