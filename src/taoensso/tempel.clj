@@ -1369,12 +1369,16 @@
   private key corresponding to the given public key.
 
   Return value depends on `:return` option:
-    `:ba-content` - Returns verified ?byte[] content (when embedded)
+    `:ba-content` - Returns verified ?byte[] content (see below)
     `:ba-aad`     - Returns verified ?byte[] AAD     (when embedded)
     `:map`        - Returns {:keys [ba-aad ba-content]} map (default)
 
   Returns nil when verification fails. Unsupported envelope algorithms,
   including MD5/SHA-1 prehashes, throw.
+
+  The content verified and returned is the `:ba-content` option when given
+  (needed when signed with `:embed-content? false`), otherwise the embedded
+  content. Any embedded content is ignored when `:ba-content` is given.
 
   Takes a `KeyChain` (see `keychain`) or `KeyPair` (see `keypair-create`).
   Key algorithm must support signatures.
