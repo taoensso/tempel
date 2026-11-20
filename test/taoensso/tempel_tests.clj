@@ -382,7 +382,7 @@
         (is (= (ckid-pair  (keys/get-ckeys-ka kc kc)) ["7" "7"]))
         (is (= (ckid-pairs (keys/get-ckeys-ka :dh-2048      [kc nil] [kc nil])) [["7" "7"] ["7" "6"] ["6" "7"] ["6" "6"]]))
         (is (= (ckid-pairs (keys/get-ckeys-ka :ec-secp256r1 [kc nil] [kc nil])) [["5" "5"]]))
-        (is (->>           (keys/get-ckeys-ka :dh-2048      [kc nil] [kc "nx"]) (throws? :ex-info {:key-id "nx"})))
+        (is (->>           (keys/get-ckeys-ka :dh-2048      [kc nil] [kc "nx"]) (throws? :ex-info {:key-ids {:sender "nx"}})))
         (is (->>           (keys/get-ckeys-ka :ec-secp384r1 [kc nil] [kc nil])  (throws? :ex-info {:key-algos {:requested :ec-secp384r1}})))]))
 
    (let [kc1 (keys/keychain {:only? true, :symmetric-keys [#_1 :random #_2 :random #_3 :random #_4 :random]})
@@ -852,7 +852,20 @@
           ba-enc   (tempel/encrypt-with-2-keypairs ba-cnt (pub receiver) sender)]
       [(is (ba= ba-cnt (tempel/decrypt-with-2-keypairs ba-enc receiver (pub sender))))
        (is (throws?    (tempel/decrypt-with-2-keypairs ba-enc receiver (pub other)))  "Wrong sender")
-       (is (throws?    (tempel/decrypt-with-2-keypairs ba-enc other    (pub sender))) "Wrong receiver")])))
+       (is (throws?    (tempel/decrypt-with-2-keypairs ba-enc other    (pub sender))) "Wrong receiver")
+
+       (let [;; Both have key ids #{"1" "2"}, but receiver uses "1" and sender "2"
+             receiver (-> receiver (keys/keychain-add-asymmetric-keypair key-algo) (keys/keychain-update-priority "1" (constantly 9)))
+             sender   (-> sender   (keys/keychain-add-asymmetric-keypair key-algo))
+             ba-enc   (tempel/encrypt-with-2-keypairs ba-cnt (pub receiver) sender)]
+         [(is (ba= ba-cnt (tempel/decrypt-with-2-keypairs ba-enc receiver (pub sender))) "As receiver")
+          (is (ba= ba-cnt (tempel/decrypt-with-2-keypairs ba-enc sender (pub receiver))) "As sender")])
+
+       (let [kp     (impl/keypair-create key-algo)
+             ba-enc (tempel/encrypt-with-2-keypairs ba-cnt (pub receiver) kp)]
+         (is (ba= ba-cnt (tempel/decrypt-with-2-keypairs ba-enc receiver
+                           (pub (keys/keychain-add-asymmetric-keypair sender kp))))
+           "Only receiver key id embedded, >1 sender keys"))])))
 
 (deftest _core-keychains
   [(testing "Encryption with symmetric key, no embedded key ids"

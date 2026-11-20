@@ -886,12 +886,7 @@
   [fail! prv? ?key-algo [x ?key-id]]
   (if (keychain? x)
     (if-let [key-id ?key-id]
-      (let [key-algo (have ?key-algo)
-            mkc @x]
-        (or
-          (when-let [ck (get-in mkc [key-id (if prv? :key-prv :key-pub)])] [ck])
-          (missing-ckey! {:need (format "Asymmetric `%s` %s key with key id: %s" key-algo (if prv? "private" "public") key-id)
-                          :key-algo ?key-algo, :key-id key-id, :key-type (if prv? :prv :pub)})))
+      (when-let [ck (get-in @x [key-id (if prv? :key-prv :key-pub)])] [ck])
 
       (keychain-ckeys x [(or ?key-algo :ka) (if prv? :key-prv :key-pub)]))
     [(-chainkey (if prv? :prv :pub) ?key-algo [:asymmetric? :ka-algo] nil x)]))
@@ -933,17 +928,24 @@
                               :given {:receiver-prv (type receiver-x-prv)
                                       :sender-pub   (type sender-x-pub)}}))
 
-         recvr-cks-prv (get-ckeys-ka* fail! true  key-algo [receiver-x-prv ?receiver-key-id])
-         sendr-cks-pub (get-ckeys-ka* fail! false key-algo [sender-x-pub   ?sender-key-id])]
+         pairs ; => [[<prv> <pub>] ...]
+         (fn [?prv-key-id ?pub-key-id]
+           (reduce-pairs
+             (fn [acc ck-prv ck-pub]
+               (if (matching-ckey-pair? ck-prv ck-pub)
+                 (conj acc             [ck-prv ck-pub])
+                 (do   acc)))
+             []
+             (get-ckeys-ka* fail! true  key-algo [receiver-x-prv ?prv-key-id])
+             (get-ckeys-ka* fail! false key-algo [sender-x-pub   ?pub-key-id])))]
 
      (or
        (not-empty
-         (reduce-pairs ; => [<prv> <pub>]
-           (fn [acc recvr-ck-prv sendr-ck-pub]
-             (if (matching-ckey-pair? recvr-ck-prv sendr-ck-pub)
-               (conj acc             [recvr-ck-prv sendr-ck-pub])
-               (do   acc)))
-           [] recvr-cks-prv sendr-cks-pub))
+         (distinct
+           (concat
+             (pairs ?receiver-key-id ?sender-key-id)
+             (when (not= ?receiver-key-id ?sender-key-id) ; When decrypting as sender
+               (pairs ?sender-key-id ?receiver-key-id)))))
 
        (truss/ex-info!
          (format "No matching asymmetric `%s` keypairs available for key agreement via given args" key-algo)
@@ -951,10 +953,8 @@
           {:receiver-key-prv (type receiver-x-prv)
            :sender-key-pub   (type sender-x-pub)}
 
-          :key-algos
-          {:requested        key-algo
-           :receiver-key-prv (into #{} (mapv #(impl/keypair-algo (get @% :key-prv)) recvr-cks-prv))
-           :sender-key-pub   (into #{} (mapv #(impl/keypair-algo (get @% :key-pub)) sendr-cks-pub))}})))))
+          :key-algos {:requested key-algo}
+          :key-ids   {:receiver ?receiver-key-id, :sender ?sender-key-id}})))))
 
 (comment :see-tests)
 
@@ -1281,9 +1281,9 @@
           {:error   (Exception. "Unexpected (falsey) `try-keys` result")})
         (catch Throwable t {:error t }))
 
-      ;; >1 keys => using `KeyChain`/s with data written with {:embed-key-ids? false}
+      ;; >1 keys => using `KeyChain`/s with data written with {:embed-key-ids? false},
+      ;; or 2 keypairs (could be decrypting as receiver or sender)
       (let [errors_ (volatile! [])]
-        (assert (not embedded-key-ids?))
         (if-let [success
                  (reduce
                    (fn [_ possible-key]
@@ -1318,7 +1318,7 @@
       :else
       (let [errors (get result :errors)
             nkeys  (count possible-keys)]
-        (truss/ex-info! (str "Failed to decrypt Tempel data (" nkeys " unidentified keys tried)")
+        (truss/ex-info! (str "Failed to decrypt Tempel data (" nkeys " keys tried)")
           {:context           context
            :num-keys-tried    nkeys
            :embedded-key-ids? embedded-key-ids?

@@ -1248,6 +1248,9 @@
     - Receiver's asymmetric private key
     - Sender's   asymmetric public  key
 
+  The sender can also decrypt, by instead giving their own private key and
+  the receiver's public key.
+
   Will throw on decryption failure (bad key, etc.)."
 
   #_(df/reference-data-formats :encrypted-with-2-keypairs-v1)
