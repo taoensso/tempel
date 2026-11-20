@@ -391,8 +391,9 @@
   "Returns a ?new `KeyChain` with the identified key's
   `:priority` updated to be (update-fn <old-priority>).
 
-  Priority values can be any integer, positive or negative.
-  Default priority is zero.
+  Priority values can be any integer, positive or negative. But to
+  encrypt or freeze a `KeyChain` they must be ∈ℕ[0, 65535], see
+  `keychain-normalize-priorities`. Default priority is zero.
 
   When multiple keys in a `KeyChain` are appropriate for a
   task, the key with highest priority (biggest int) will be
@@ -600,6 +601,10 @@
                 (not (instance? expected-class key-cnt))
                 (fail! "Unexpected key content type in `KeyChain` entry"
                   {:expected expected-class, :actual (type key-cnt), :key-id key-id})
+
+                (not (and (integer? priority) (<= 0 priority 65535))) ; Stored as ushort
+                (fail! "Key priorities must be ∈ℕ[0, 65535] to encrypt/freeze `KeyChain`, see `keychain-normalize-priorities`"
+                  {:priority priority, :key-id key-id})
 
                 :else
                 {:key-type (have key-type)

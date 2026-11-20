@@ -393,7 +393,11 @@
       (is (= (get @kc2 "4") {}) "Key removal keeps key-id entry")
 
       (is (= (enc/map-vals :priority @(do                                 kc2)) {"1" 0, "2" -99, "3" 2, "4" nil}))
-      (is (= (enc/map-vals :priority @(keys/keychain-normalize-priorities kc2)) {"1" 1, "2"   0, "3" 2, "4" nil}))])
+      (is (= (enc/map-vals :priority @(keys/keychain-normalize-priorities kc2)) {"1" 1, "2"   0, "3" 2, "4" nil}))
+
+      (let [kc-enc #(tempel/keychain-encrypt % {:password "pwd", :pbkdf-nwf :ref-10-msecs})]
+        [(is (throws? :ex-info "Key priorities must be ∈ℕ[0, 65535]" (kc-enc kc2)))
+         (is (bytes? (kc-enc (keys/keychain-normalize-priorities kc2))))])])
 
    (let [kc1 (keys/keychain {:symmetric-keys      [#_1 :random]
                              :asymmetric-keypairs [#_2 :rsa-1024 #_3 :dh-1024]})
