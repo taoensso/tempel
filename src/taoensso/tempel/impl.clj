@@ -1047,7 +1047,11 @@
         key-pub (as-key-pub key-algo [:asymmetric? :ka-algo] participant2-key-pub)]
     (.init           ka key-prv (srng))
     (.doPhase        ka key-pub true)
-    (.generateSecret ka)))
+    (let [secret (.generateSecret ka)]
+      ;; Some X25519 providers return all zeros for a low-order input (RFC 7748 §6.1).
+      (when (and (= ka-algo :xdh) (java.security.MessageDigest/isEqual secret (byte-array 32)))
+        (truss/ex-info! "Invalid all-zero X25519 shared secret" {}))
+      secret)))
 
 ;;;; Signatures
 
