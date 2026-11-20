@@ -45,32 +45,48 @@
             (truss/ex-info! "Failed to enable backup key support during encryption" {} t)))))))
 
 (defn get-backup-key-for-decryption
-  "Returns `?ba-key1` or decrypted (symmetric) backup key.
-  Complement of `get-backup-key-for-encryption`."
-  [?ba-ekey1b decrypt-opts]
-  (when-let [^bytes ba-ekey1b ?ba-ekey1b]
-    (let [{:keys [backup-key backup-opts]} decrypt-opts]
-      (when backup-key
-        (let [backup-opts
-              (let [base-opts
-                    (->
-                      decrypt-opts
-                      (dissoc :ba-aad :ba-akm)
-                      (assoc  :require-hmac? false))] ; As when encrypting
-                (assoc
-                  (core/get-opts+ base-opts backup-opts)
-                  :backup-key nil :backup-opts nil
-                  :return :ba-content))]
-          (try
-            (core/decrypt-with-1-keypair ba-ekey1b backup-key backup-opts)
-            (catch Throwable t
-              (if-not (get (ex-data t) :missing-hmac?) ; Legacy CBC backup copy
-                (truss/ex-info! "Failed to decrypt embedded backup key" {} t)
-                (truss/ex-info!
-                  (str "Missing HMAC in embedded backup key copy (legacy CBC data). "
-                    "Decrypt with the primary key/password and re-encrypt, or for trusted "
-                    "offline recovery use `:backup-opts {:ignore-hmac? true}`.")
-                  {} t)))))))))
+  "Returns nil (=> decrypt with primary key), or backup copy of `ba-key1`.
+  Complement of `get-backup-key-for-encryption`.
+
+  Backup key must be in call opts (global is ignored), and can't be
+  combined with a primary key. Otherwise a backup key in effect could
+  bypass primary key checks (logins, etc.)."
+  [?ba-ekey1b call-opts decrypt-opts primary-keys]
+  (let [backup-key (get call-opts :backup-key)
+        primary?   (some some? primary-keys)]
+    (enc/cond
+      (and primary? (some? backup-key))
+      (truss/ex-info! "Must provide a primary key/password OR `:backup-key` when decrypting, not both" {})
+
+      primary? nil
+
+      (nil? backup-key)
+      (truss/ex-info! "Must provide a primary key/password, or `:backup-key` in call options" {})
+
+      (nil? ?ba-ekey1b)
+      (truss/ex-info! "Data wasn't encrypted with backup key support" {})
+
+      :else
+      (let [backup-opts
+            (let [base-opts
+                  (->
+                    decrypt-opts
+                    (dissoc :ba-aad :ba-akm)
+                    (assoc  :require-hmac? false))] ; As when encrypting
+              (assoc
+                (core/get-opts+ base-opts (get decrypt-opts :backup-opts))
+                :backup-key nil :backup-opts nil
+                :return :ba-content))]
+        (try
+          (core/decrypt-with-1-keypair ?ba-ekey1b backup-key backup-opts)
+          (catch Throwable t
+            (if-not (get (ex-data t) :missing-hmac?) ; Legacy CBC backup copy
+              (truss/ex-info! "Failed to decrypt embedded backup key" {} t)
+              (truss/ex-info!
+                (str "Missing HMAC in embedded backup key copy (legacy CBC data). "
+                  "Decrypt with the primary key/password and re-encrypt, or for trusted "
+                  "offline recovery use `:backup-opts {:ignore-hmac? true}`.")
+                {} t))))))))
 
 ;;;; ChainKey
 
@@ -1112,6 +1128,8 @@
     `:ba-aad`     - Returns verified unencrypted embedded ?byte[] AAD
     `:map`        - Returns {:keys [keychain ba-aad ba-content]} map
 
+  May instead be given a `:backup-key` (see `*config*`), throws if incorrect.
+
   See `keychain-encrypt` for details.
   See Tempel Wiki for detailed usage info, common patterns, examples, etc."
 
@@ -1161,7 +1179,7 @@
                 (truss/ex-info! impl/error-msg-bad-ehmac {})))
 
             sck (impl/as-symmetric-cipher-kit sym-cipher-algo)
-            ?ba-key1b (get-backup-key-for-decryption ?ba-ekey1b opts+)
+            ?ba-key1b (get-backup-key-for-decryption ?ba-ekey1b opts opts+ [password key-sym key-prv])
             _ (when (and password ?pbkdf-algo (nil? ?ba-key1b))
                 (pbkdf/pbkdf-nwf-max! ?pbkdf-algo pbkdf-nwf (:pbkdf-nwf-max opts+)))
 

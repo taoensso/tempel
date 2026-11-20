@@ -514,6 +514,7 @@
             enc-backup-akm? [false true]
             dec-backup-akm* [:good :bad]
             embed-hmac?     [true false]
+            :when           (not (and dec-backup-key (= dec-key* :bad))) ; Backup key needs nil primary key
             :while          (not @failed_)]
 
         (let [_
@@ -527,7 +528,7 @@
               ba-enc-aad (when (pos? ^long aad-size)  (impl/rand-ba aad-size))
               ba-enc-akm (when (pos? ^long akm-size)  (impl/rand-ba akm-size))
               ba-dec-akm (case ba-dec-akm* :good ba-enc-akm, :bad (impl/rand-ba 32) nil nil)
-              dec-key    (case dec-key*    :good dec-key     :bad dec-!key)
+              dec-key    (when-not dec-backup-key (case dec-key* :good dec-key :bad dec-!key))
 
               ba-enc-backup-akm (when enc-backup-akm? (impl/rand-ba (rand-int 128)))
               enc-backup-opts   (when enc-backup-akm? {:ba-akm                             ba-enc-backup-akm})
@@ -544,7 +545,7 @@
                 (when (and (= kind :kc) (nil? enc-result)) [:dec-error :nil-result]))
 
               expect-success?
-              (if (and enc-backup-key dec-backup-key)
+              (if dec-backup-key
                 (and
                   (= enc-backup-key dec-backup-key)
                   (bytes/?ba=
@@ -905,11 +906,11 @@
         ba-cnt  (as-ba "Authenticated content")]
 
     [(testing "CBC cannot fall back to unauthenticated decryption"
-       (doseq [[encrypt decrypt]
-               [[#(tempel/encrypt-with-password      % "pwd"       %2) #(tempel/decrypt-with-password      % "pwd"       %2)]
-                [#(tempel/encrypt-with-symmetric-key % key-sym     %2) #(tempel/decrypt-with-symmetric-key % key-sym     %2)]
-                [#(tempel/encrypt-with-1-keypair     % kp-rsa      %2) #(tempel/decrypt-with-1-keypair     % kp-rsa      %2)]
-                [#(tempel/encrypt-with-2-keypairs    % kp-ec kp-ec %2) #(tempel/decrypt-with-2-keypairs    % kp-ec kp-ec %2)]]]
+       (doseq [[encrypt decrypt recover]
+               [[#(tempel/encrypt-with-password      % "pwd"       %2) #(tempel/decrypt-with-password      % "pwd"       %2) #(tempel/decrypt-with-password      % nil     %2)]
+                [#(tempel/encrypt-with-symmetric-key % key-sym     %2) #(tempel/decrypt-with-symmetric-key % key-sym     %2) #(tempel/decrypt-with-symmetric-key % nil     %2)]
+                [#(tempel/encrypt-with-1-keypair     % kp-rsa      %2) #(tempel/decrypt-with-1-keypair     % kp-rsa      %2) #(tempel/decrypt-with-1-keypair     % nil     %2)]
+                [#(tempel/encrypt-with-2-keypairs    % kp-ec kp-ec %2) #(tempel/decrypt-with-2-keypairs    % kp-ec kp-ec %2) #(tempel/decrypt-with-2-keypairs    % nil nil %2)]]]
 
          (let [ba (encrypt ba-cnt {:sym-cipher-algo :aes-cbc-128-v1-deprecated
                                    :pbkdf-nwf :ref-10-msecs :embed-hmac? false :backup-key kp-rsa})
@@ -917,8 +918,9 @@
 
            [(is (ba= ba-cnt (decrypt ba {})))
             (is (throws? :ex-info "Missing HMAC" (decrypt stripped {})))
-            (is (ba= ba-cnt (decrypt ba {:backup-key kp-rsa})))
-            (is (throws? :ex-info "Missing HMAC" (decrypt stripped {:backup-key kp-rsa})))
+            (is (ba= ba-cnt (recover ba {:backup-key kp-rsa})))
+            (is (throws? :ex-info "Missing HMAC" (recover stripped {:backup-key kp-rsa})))
+            (is (throws? :ex-info "not both"     (decrypt ba       {:backup-key kp-rsa})))
             (is (ba= ba-cnt (decrypt stripped {:ignore-hmac? true})))])))
 
      (testing "Legacy CBC backup copy without an HMAC"
@@ -1013,10 +1015,24 @@
           ba-cnt  (as-ba "cnt")
           config  (assoc tempel/*config* :backup-key kp-rsa :backup-opts {:backup-key kp-rsa} :ba-akm (as-ba "global akm"))
           ba      (binding [tempel/*config* config] (tempel/encrypt-with-symmetric-key ba-cnt key-sym))]
-      [(is (ba= ba-cnt (binding [tempel/*config* config] (tempel/decrypt-with-symmetric-key ba nil))))
+      [(is (ba= ba-cnt (binding [tempel/*config* config] (tempel/decrypt-with-symmetric-key ba nil {:backup-key kp-rsa}))))
        (is (throws? :ex-info "Failed to decrypt embedded backup key"
              (tempel/decrypt-with-symmetric-key ba nil {:backup-key kp-rsa}))
-         "Backup copy inherits global AKM")])))
+         "Backup copy inherits global AKM")]))
+
+  (testing "Backup key used only when in call opts, without primary key"
+    (let [kp-rsa (impl/keypair-create :rsa-1024)
+          kc     (keys/keychain {:only? true :symmetric-keys [:random]})]
+      (binding [tempel/*config* (assoc tempel/*config* :backup-key kp-rsa :pbkdf-nwf :ref-10-msecs)]
+        (let [ekc (tempel/keychain-encrypt kc {:password "pwd"})]
+          [(is (= kc (tempel/keychain-decrypt ekc {:password "pwd"})))
+           (is (= kc (tempel/keychain-decrypt ekc {:backup-key kp-rsa})))
+           (is (nil?  (tempel/keychain-decrypt ekc {:password "!pwd"})) "Global backup key can't bypass password")
+           (is (throws? :ex-info "Must provide" (tempel/keychain-decrypt ekc {})) "Global backup key can't recover")
+           (is (throws? :ex-info "not both"     (tempel/keychain-decrypt ekc {:password "pwd" :backup-key kp-rsa})))
+           (is (throws? :ex-info "backup key support"
+                 (tempel/decrypt-with-password
+                   (tempel/encrypt-with-password ba-cnt "pwd" {:backup-key nil}) nil {:backup-key kp-rsa})))])))))
 
 (deftest _keychain-encrypt-key-pub
   (let [kc     (keys/keychain {:only? true :symmetric-keys [:random]})

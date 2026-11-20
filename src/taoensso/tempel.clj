@@ -326,15 +326,18 @@
         the backup copy of the key, so recovery needs the same global AKM
         (or none).
 
-      When decrypting:
-        When data was encrypted with support for a backup key, use this
-        `KeyChain` (see `keychain`) or `KeyPair` (see `keypair-create`) to decrypt.
+      When decrypting (call option only, ignored in `*config*`):
+        Decrypt data that was encrypted with support for a backup key, using
+        this `KeyChain` (see `keychain`) or `KeyPair` (see `keypair-create`)
+        INSTEAD of the primary key/password, which must be nil or omitted:
+
+          (decrypt-with-password ba-encrypted nil {:backup-key <key>})
+          (keychain-decrypt      ba-encrypted     {:backup-key <key>})
 
         Backup recovery does NOT authenticate the original sender or password
         holder: anyone with the backup public key can create recoverable data.
         Authenticate the stored envelope separately before recovery (e.g. with
-        a signature from a trusted key). Supply `:backup-key` per recovery call,
-        rather than enabling it globally. Always authenticate backup public keys.
+        a signature from a trusted key). Always authenticate backup public keys.
 
       Key algorithm must support use as an asymmetric cipher.
       Suitable algorithms: `:rsa-<nbits>`.
@@ -673,7 +676,7 @@
                 (truss/ex-info! impl/error-msg-bad-ehmac {})))
 
             sck      (impl/as-symmetric-cipher-kit sym-cipher-algo)
-            ba-key1b (keys/get-backup-key-for-decryption ?ba-ekey1b opts+)
+            ba-key1b (keys/get-backup-key-for-decryption ?ba-ekey1b opts opts+ [password])
             ba-key1
             (or
               ba-key1b
@@ -822,7 +825,7 @@
 
             sck (impl/as-symmetric-cipher-kit sym-cipher-algo)
             ba-cnt
-            (if-let [ba-key1 (keys/get-backup-key-for-decryption ?ba-ekey1b opts+)]
+            (if-let [ba-key1 (keys/get-backup-key-for-decryption ?ba-ekey1b opts opts+ [key-sym])]
               (try
                 (let [ba-key1 (hmac-pass! ba-key1)
                       ba-key2 (impl/derive-ba-key2 hash-algo ba-key1 ba-iv)]
@@ -1024,6 +1027,7 @@
           :encrypted-with-1-keypair-simple-v1
           #_(df/reference-data-formats :encrypted-with-1-keypair-simple-v1)
           (let [_ (impl/ehmac-required! nil ignore-hmac? require-hmac?) ; No HMAC support
+                _ (keys/get-backup-key-for-decryption nil opts opts+ [receiver-key-prv]) ; No backup support
                 _
                 (when ba-akm
                   (truss/ex-info! "Failed to decrypt Tempel data (no AKM support)" {}))
@@ -1079,7 +1083,7 @@
 
                 sck (impl/as-symmetric-cipher-kit sym-cipher-algo)
                 ba-cnt
-                (if-let [ba-key1 (keys/get-backup-key-for-decryption ?ba-ekey1b opts+)]
+                (if-let [ba-key1 (keys/get-backup-key-for-decryption ?ba-ekey1b opts opts+ [receiver-key-prv])]
                   (try
                     (let [ba-key1 (hmac-pass!  ba-key1)
                           ba-key2 (impl/derive-ba-key2 hash-algo ba-key1 ba-iv)]
@@ -1276,7 +1280,7 @@
 
             sck (impl/as-symmetric-cipher-kit sym-cipher-algo)
             ba-cnt
-            (if-let [ba-key1 (keys/get-backup-key-for-decryption ?ba-ekey1b opts+)]
+            (if-let [ba-key1 (keys/get-backup-key-for-decryption ?ba-ekey1b opts opts+ [receiver-key-prv sender-key-pub])]
               (try
                 (let [ba-key1 (hmac-pass!  ba-key1)
                       ba-key2 (impl/derive-ba-key2 hash-algo ba-key1 ba-iv)]
