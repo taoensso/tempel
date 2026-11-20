@@ -918,6 +918,11 @@
 
 ;;;; Asymmetric ciphers using 1 keypair
 
+(let [params (fn [mgf1-spec] (javax.crypto.spec.OAEPParameterSpec. "SHA-256" "MGF1" mgf1-spec javax.crypto.spec.PSource$PSpecified/DEFAULT))]
+  ;; Explicit params for `:rsa-oaep-sha-256-mgf1` since provider defaults differ
+  (def ^:private ^java.security.spec.AlgorithmParameterSpec rsa-oaep-params    (params java.security.spec.MGF1ParameterSpec/SHA1))    ; As SunJCE default
+  (def ^:private ^java.security.spec.AlgorithmParameterSpec rsa-oaep-params-bc (params java.security.spec.MGF1ParameterSpec/SHA256))) ; As Bouncy Castle default, legacy reads only
+
 (let [tl:cipher-rsa-oaep-sha-256-mgf1 (enc/threadlocal (javax.crypto.Cipher/getInstance "RSA/ECB/OAEPWithSHA-256AndMGF1Padding"))]
 
   (defn- as-asymmetric-cipher
@@ -974,7 +979,7 @@
     (case asym-cipher-algo
       :ecies-x25519-v1 (encrypt-ecies-x25519 key-pub ba-content)
       (let [cipher (as-asymmetric-cipher asym-cipher-algo)]
-        (.init    cipher javax.crypto.Cipher/ENCRYPT_MODE key-pub (srng))
+        (.init    cipher javax.crypto.Cipher/ENCRYPT_MODE key-pub rsa-oaep-params (srng))
         (.doFinal cipher ba-content)))))
 
 (defn decrypt-asymmetric
@@ -983,9 +988,14 @@
   (let [key-prv (as-key-prv key-algo [:asymmetric? :asym-cipher-algo] key-prv)]
     (case asym-cipher-algo
       :ecies-x25519-v1 (decrypt-ecies-x25519 key-prv ba-encrypted-content)
-      (let [cipher (as-asymmetric-cipher asym-cipher-algo)]
-        (.init    cipher javax.crypto.Cipher/DECRYPT_MODE key-prv)
-        (.doFinal cipher ba-encrypted-content)))))
+      (let [cipher  (as-asymmetric-cipher asym-cipher-algo)
+            decrypt (fn [^java.security.spec.AlgorithmParameterSpec params]
+                      (.init    cipher javax.crypto.Cipher/DECRYPT_MODE key-prv params)
+                      (.doFinal cipher ba-encrypted-content))]
+        (try
+          (decrypt rsa-oaep-params)
+          (catch javax.crypto.BadPaddingException e
+            (try (decrypt rsa-oaep-params-bc) (catch javax.crypto.BadPaddingException _ (throw e)))))))))
 
 ;;;; Asymmetric ciphers using 2 keypairs
 ;; Note that >2 party key-agreement is possible, but impractical since it

@@ -227,6 +227,27 @@
                  ba-dcnt (impl/decrypt-asymmetric asym-cipher-algo key-algo ba-prv ba-ecnt)]
              (is (bytes/ba= ba-cnt ba-dcnt)))))])))
 
+(deftest _rsa-oaep-params
+  (let [kp     (impl/keypair-create :rsa-1024)
+        ba-cnt (as-ba "cnt")
+        cipher (fn [mode mgf1-spec]
+                 (doto (javax.crypto.Cipher/getInstance "RSA/ECB/OAEPPadding")
+                   (.init (int mode) (impl/as-key (= mode javax.crypto.Cipher/DECRYPT_MODE) nil nil kp)
+                     (javax.crypto.spec.OAEPParameterSpec. "SHA-256" "MGF1" mgf1-spec
+                       javax.crypto.spec.PSource$PSpecified/DEFAULT))))
+
+        sha-1   java.security.spec.MGF1ParameterSpec/SHA1   ; As SunJCE default
+        sha-256 java.security.spec.MGF1ParameterSpec/SHA256 ; As Bouncy Castle default
+        encrypt #(.doFinal ^javax.crypto.Cipher (cipher javax.crypto.Cipher/ENCRYPT_MODE %) ba-cnt)
+        decrypt #(impl/decrypt-asymmetric :rsa-oaep-sha-256-mgf1 :rsa-1024 kp %)]
+
+    [(is (ba= ba-cnt (decrypt (encrypt sha-1))))
+     (is (ba= ba-cnt (decrypt (encrypt sha-256))) "Legacy data")
+     (is (ba= ba-cnt
+           (.doFinal ^javax.crypto.Cipher (cipher javax.crypto.Cipher/DECRYPT_MODE sha-1)
+             (impl/encrypt-asymmetric :rsa-oaep-sha-256-mgf1 :rsa-1024 kp ba-cnt)))
+       "Always written with SHA-1")]))
+
 (deftest _key-shared-create
   (doseq [[ka-algo key-algo] [[:dh :dh-1024] [:ecdh :ec-secp256r1] [:xdh :x25519]]]
     (let [kp1 (impl/keypair-create key-algo)
