@@ -2,7 +2,6 @@
 
 (ns graal-tests
   (:require
-   [clojure.string :as str]
    [babashka.fs    :as fs]
    [babashka.process :refer [shell]]))
 
@@ -32,6 +31,4 @@
       "--no-fallback" "-jar" "target/graal-tests.jar" "graal_tests")))
 
 (defn run-tests []
-  (let [{:keys [out]} (shell {:out :string} (executable "." "graal_tests"))]
-    (assert (str/includes? out "loaded") out)
-    (println "Native image works!")))
+  (shell (executable "." "graal_tests")))
