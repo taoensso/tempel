@@ -1031,3 +1031,12 @@
      (is (throws? :ex-info "more than one" (tempel/keychain-encrypt kc {:key-pub kp :password "pwd"})))
      (let [ekc (binding [tempel/*config* (assoc tempel/*config* :ba-akm ba-akm)] (tempel/keychain-encrypt kc {:key-pub kp}))]
        (is (= kc (tempel/keychain-decrypt ekc {:key-prv kp :ba-akm ba-akm})) "Global AKM applies once"))]))
+(deftest _keychain-decrypt-errors
+  (is (nil? (tempel/keychain-decrypt (tempel/keychain-encrypt (keys/keychain) {:key-sym (as-ba 32)}) {:password "pwd"}))
+    "Password given for keychain encrypted with key")
+
+  (when-not pbkdf/have-dep-pbkdf-scrypt?
+    (let [ekc-scrypt (.decode (java.util.Base64/getDecoder) "VFBMBoEBgItUUEwIgICAAIAAgICAAwECgAqAgJDQVhucxtypTb1Wv0YHhCw3xVhezQAdy4kKVASq2fovVnfTln7FcijJMZwjdCCSdhmFxKULYadaEAlj4Qm5USkeeEySnrInWaOU8Cy0wrVePtxD2f6WboCAoBgK7tsQOrGKKBZ1wLuknK2D59u+2x+f9Yp+1ISoVBmagA==")]
+      (is (throws? :ex-info "Missing optional dependency" (tempel/keychain-decrypt ekc-scrypt {:password "pwd"}))
+        "Missing dependency isn't reported as a bad password"))))
+

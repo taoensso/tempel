@@ -1103,7 +1103,9 @@
   and a password, symmetric key, or private key (`:key-prv`) - checks if
   given password or key is correct.
 
-  If incorrect, returns nil.
+  If incorrect, returns nil. Throws on invalid options (e.g. `:ba-akm` type)
+  or data (e.g. missing HMAC, `:pbkdf-nwf-max` exceeded), or with a password:
+  on a missing optional dependency or JVM error.
   If   correct, return value depends on `:return` option:
     `:keychain`   - Returns decrypted `KeyChain` (default)
     `:ba-content` - Returns decrypted byte[] content
@@ -1181,7 +1183,9 @@
                       ba-key1 (hmac-pass!  ba-key1)
                       ba-key2 (impl/derive-ba-key2 hash-algo ba-key1 ba-iv)]
                   (impl/sck-decrypt sck ba-iv ba-key2 ba-ecnt ?ba-aad))
-                (catch Throwable t nil))
+                (catch Throwable t
+                  (when (or (instance? Error t) (get (ex-data t) :dependency)) ; JVM error, missing dependency
+                    (throw t))))
 
               key-sym
               (try
