@@ -9,7 +9,7 @@ This project uses [**Break Versioning**](https://www.taoensso.com/break-versioni
 
 This is a **release candidate** for v1.2, with security fixes, new key algorithms, and public-key encryption for keychains. It needs Java 17+.
 
-Please test carefully with copies of your existing data before upgrading production systems, and report any unexpected issues. Thank you! 🙏
+Please test carefully before upgrading production systems, and report any unexpected issues. Thank you! 🙏
 
 \- [Peter Taoussanis](https://www.taoensso.com)
 
